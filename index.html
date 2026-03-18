@@ -428,11 +428,13 @@ const DB = {
     const { data, error } = await supabase.from('reports').update(updates).eq('id', id).select();
     return error ? null : (data ? data[0] : null);
   },
+  deleteReport: async (id) => {
+    const { error } = await supabase.from('reports').delete().eq('id', id);
+    return !error;
+  },
   getCurrentUser: () => JSON.parse(sessionStorage.getItem('findy_user') || 'null'),
   setCurrentUser: (u) => sessionStorage.setItem('findy_user', JSON.stringify(u)),
   clearCurrentUser: () => sessionStorage.removeItem('findy_user'),
-};
-
 };
 
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 10).toUpperCase(); }
@@ -475,14 +477,14 @@ async function render() {
     </div>` : '';
 
   const isFound = path === '/found';
-  const nav  = isFound ? '' : renderNav(user);
+  const nav  = isFound ? '' : await renderNav(user);
   const foot = isFound ? '' : `<div class="footer">🏷️ Findy &nbsp;·&nbsp; Tag Your Things</div>`;
 
   let content = '';
   if      (path === '/')          content = renderHome(user);
   else if (path === '/login')     content = renderLogin();
   else if (path === '/signup')    content = renderSignup();
-  else if (path === '/setup')     content = user ? renderSetup(user) : renderLogin('Please sign in first.');
+  else if (path === '/setup')     content = user ? await renderSetup(user) : renderLogin('Please sign in first.');
   else if (path === '/dashboard') {
     if (!user) {
       content = renderLogin('Please sign in first.');
@@ -492,11 +494,11 @@ async function render() {
       content = await renderDashboard(user);
     }
   }
-  else if (path === '/settings')  content = user ? renderSettings(user) : renderLogin('Please sign in first.');
-  else if (path === '/admin')       content = renderAdmin();
-  else if (path === '/found')       content = renderFound(params);
+  else if (path === '/settings')  content = user ? await renderSettings(user) : renderLogin('Please sign in first.');
+  else if (path === '/admin')       content = await renderAdmin();
+  else if (path === '/found')       content = await renderFound(params);
   else if (path === '/view-report') content = renderViewReport(params);
-  else if (path === '/report')      content = user ? renderReport(params.id, user) : renderLogin('Please sign in to view reports.');
+  else if (path === '/report')      content = user ? await renderReport(params.id, user) : renderLogin('Please sign in to view reports.');
   else content = `<div class="page text-center mt-24"><h2>Page not found</h2></div>`;
 
   app.innerHTML = banner + nav + content + foot;
@@ -504,7 +506,7 @@ async function render() {
   // Generate QR after render if on dashboard
   if (path === '/dashboard' && user) {
     generateDashQR(user);
-    startDashboardPolling(user);
+    await startDashboardPolling(user);
   } else {
     stopDashboardPolling();
   }
@@ -513,13 +515,13 @@ async function render() {
 // Poll for new reports every 5s while on dashboard
 let _dashPollTimer = null;
 let _dashPollCount = null;
-function startDashboardPolling(user) {
+async function startDashboardPolling(user) {
   stopDashboardPolling();
-  _dashPollCount = (await DB.getReports()).filter(r => r.userId === user.id).length;
+  _dashPollCount = (await DB.getReports()).filter(r => r.user_id === user.id).length;
   _dashPollTimer = setInterval(async () => {
     const { path } = getRoute();
     if (path !== '/dashboard') { stopDashboardPolling(); return; }
-    const current = (await DB.getReports()).filter(r => r.userId === user.id).length;
+    const current = (await DB.getReports()).filter(r => r.user_id === user.id).length;
     if (current !== _dashPollCount) {
       _dashPollCount = current;
       render(); // re-render dashboard to show new report
@@ -533,8 +535,9 @@ function stopDashboardPolling() {
 // ================================================================
 // NAV
 // ================================================================
-function renderNav(user) {
-  const reports = user ? DB.getReports().filter(r => r.userId === user.id && !r.read) : [];
+async function renderNav(user) {
+  const allReports = user ? await DB.getReports() : [];
+  const reports = allReports.filter(r => r.user_id === user.id && !r.read);
   return `
     <nav class="nav">
       <div class="nav-logo" onclick="navigate('/')">🏷️ <span>Findy</span></div>
@@ -795,21 +798,19 @@ function renderHome(user) {
     </div>`;
 }
 
-window.tryDemo = function() {
+window.tryDemo = async function() {
   // Create a demo user if needed
   const users = await DB.getUsers();
   let demo = users.find(u => u.code === 'DEMO99');
   if (!demo) {
-    demo = { id: 'demo', name: 'Demo User', email: 'demo@findy.app', password: '0000', code: 'DEMO99', createdAt: new Date().toISOString() };
-    DB.saveUsers([...users, demo]);
+    demo = { id: 'demo', name: 'Demo User', email: 'demo@findy.app', password: '0000', code: 'DEMO99', created_at: new Date().toISOString() };
+    await DB.insertUser(demo);
     // Add some demo items
-    const items = DB.getItems();
-    if (!items.find(i => i.userId === 'demo')) {
-      DB.saveItems([...items,
-        { id: uid(), userId: 'demo', name: 'Black backpack' },
-        { id: uid(), userId: 'demo', name: 'House keys' },
-        { id: uid(), userId: 'demo', name: 'Passport wallet' },
-      ]);
+    const items = await DB.getItems();
+    if (!items.find(i => i.user_id === 'demo')) {
+      await DB.insertItem({ id: uid(), user_id: 'demo', item_name: 'Black backpack' });
+      await DB.insertItem({ id: uid(), user_id: 'demo', item_name: 'House keys' });
+      await DB.insertItem({ id: uid(), user_id: 'demo', item_name: 'Passport wallet' });
     }
   }
   navigate('/found?u=DEMO99');
@@ -891,10 +892,11 @@ function renderLogin(msg) {
     </div>`;
 }
 
-window.doLogin = function() {
+window.doLogin = async function() {
   const email = document.getElementById('login-email').value.trim();
   const pin   = document.getElementById('login-pin').value;
-  const user  = DB.getUsers().find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === pin);
+  const users = await DB.getUsers();
+  const user  = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === pin);
   if (!user) {
     document.getElementById('auth-error').innerHTML = '<div class="alert alert-error">Incorrect email or PIN. Please try again.</div>';
     return;
@@ -937,7 +939,7 @@ function renderSignup() {
     </div>`;
 }
 
-window.doSignup = function() {
+window.doSignup = async function() {
   const name  = document.getElementById('signup-name').value.trim();
   const email = document.getElementById('signup-email').value.trim();
   const phone = (document.getElementById('signup-phone').value || '').trim();
@@ -949,8 +951,9 @@ window.doSignup = function() {
   if (!/^\d{4}$/.test(pin))         { err.innerHTML = '<div class="alert alert-error">PIN must be exactly 4 digits.</div>'; return; }
   const users = await DB.getUsers();
   if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) { err.innerHTML = '<div class="alert alert-error">An account with this email already exists.</div>'; return; }
-  const user = { id: uid(), name, email, phone, password: pin, code: uniqueCode(), createdAt: new Date().toISOString() };
-  DB.saveUsers([...users, user]);
+  const code = await uniqueCode();
+  const user = { id: uid(), name, email, wa_phone: phone, password: pin, code: code, created_at: new Date().toISOString(), email_verified: false };
+  await DB.insertUser(user);
   DB.setCurrentUser(user);
   navigate('/setup');
 };
@@ -969,7 +972,7 @@ window.showLoginForm = function(e) {
   document.getElementById('login-view').style.display  = 'block';
 };
 
-window.sendResetCode = function() {
+window.sendResetCode = async function() {
   const email = document.getElementById('reset-email').value.trim();
   const errEl = document.getElementById('reset-error');
   errEl.innerHTML = '';
@@ -977,7 +980,8 @@ window.sendResetCode = function() {
     errEl.innerHTML = '<div class="alert alert-error">Please enter a valid email address.</div>';
     return;
   }
-  const user = DB.getUsers().find(u => u.email.toLowerCase() === email.toLowerCase());
+  const users = await DB.getUsers();
+  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
   if (!user) {
     errEl.innerHTML = '<div class="alert alert-error">No account found with that email address.</div>';
     return;
@@ -1015,7 +1019,7 @@ window.sendResetCode = function() {
   });
 };
 
-window.doResetPin = function() {
+window.doResetPin = async function() {
   const code     = document.getElementById('reset-code-input').value.trim();
   const newPin   = document.getElementById('reset-new-pin').value;
   const errEl    = document.getElementById('reset-error');
@@ -1030,9 +1034,11 @@ window.doResetPin = function() {
     errEl.innerHTML = '<div class="alert alert-error">PIN must be exactly 4 digits.</div>';
     return;
   }
-  const users   = DB.getUsers();
-  const updated = users.map(u => u.email.toLowerCase() === resEmail ? { ...u, password: newPin } : u);
-  DB.saveUsers(updated);
+  const users   = await DB.getUsers();
+  const user = users.find(u => u.email.toLowerCase() === resEmail);
+  if (user) {
+    await DB.updateUser(user.id, { password: newPin });
+  }
   sessionStorage.removeItem('findy_reset_code');
   sessionStorage.removeItem('findy_reset_email');
   errEl.innerHTML = '<div class="alert alert-success">✅ PIN updated! Taking you to sign in…</div>';
@@ -1043,10 +1049,10 @@ window.doResetPin = function() {
 // DASHBOARD
 // ================================================================
 async function renderDashboard(user) {
-  const reports = DB.getReports().filter(r => r.userId === user.id);
-  const items   = DB.getItems().filter(i => i.userId === user.id);
+  const reports = (await DB.getReports()).filter(r => r.user_id === user.id);
+  const items   = (await DB.getItems()).filter(i => i.user_id === user.id);
   const unread  = reports.filter(r => !r.read).length;
-  const foundUrl = buildFoundUrl(user);
+  const foundUrl = await buildFoundUrl(user);
 
   return `
     <div class="page-wide">
@@ -1054,9 +1060,8 @@ async function renderDashboard(user) {
         <h2>Hey, ${user.name.split(' ')[0]}! 👋</h2>
         <p class="text-muted mt-8">Your personal QR code is ready to print and stick on anything.</p>
         ${(()=>{
-          const ntfy   = JSON.parse(localStorage.getItem('findy_ntfy_' + user.id)||'{}');
           const ejsOk  = user.email_verified;
-          const ntfyOk = !!(ntfy.phone && ntfy.apiKey);
+          const ntfyOk = !!(user.wa_phone && user.wa_api_key);
           if (ejsOk && ntfyOk) return `<div class="alert alert-success mt-8" style="font-size:13px;">⚡ <strong>All alerts active</strong> — you'll get email &amp; WhatsApp when something is found. <a href="#/settings" style="color:inherit;font-weight:700;">Edit settings →</a></div>`;
           if (ejsOk) return `<div class="alert alert-success mt-8" style="font-size:13px;">✅ Email alerts active. <a href="#/settings" style="color:inherit;font-weight:700;">Add WhatsApp too →</a></div>`;
           return ''; // QR card already shows the locked state + call-to-action — no need to duplicate it here
@@ -1066,8 +1071,7 @@ async function renderDashboard(user) {
       <!-- Personal QR Card — only shown once email is verified so notifications are baked in -->
       ${(()=>{
         const emailVerified = user.email_verified;
-        const ntfy2   = JSON.parse(localStorage.getItem('findy_ntfy_' + user.id) || '{}');
-        const hasWA   = !!(ntfy2.phone && ntfy2.apiKey);
+        const hasWA   = !!(user.wa_phone && user.wa_api_key);
 
         if (!emailVerified) return `
           <div class="qr-card" style="text-align:center;">
@@ -1146,19 +1150,19 @@ function renderReportsTab(reports) {
       <p>When someone finds one of your items and scans your QR sticker, their message will appear here.</p>
     </div>`;
   return [...reports]
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .map(r => {
-      const time = new Date(r.timestamp).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      const time = new Date(r.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
       return `
         <div class="report-item ${!r.read?'unread':''}" onclick="navigate('/report?id=${r.id}')">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <span class="badge ${!r.read?'badge-orange':'badge-grey'}">${!r.read?'🔴 New':'Read'}</span>
             <span style="font-size:12px;color:var(--text-muted);">${time}</span>
           </div>
-          ${r.itemName ? `<div class="font-bold mt-8">Re: ${r.itemName}</div>` : ''}
+          ${r.item_name ? `<div class="font-bold mt-8">Re: ${r.item_name}</div>` : ''}
           <div style="font-size:14px;color:var(--text);margin-top:4px;line-height:1.5;">"${r.message.substring(0,90)}${r.message.length>90?'…':''}"</div>
           <div style="display:flex;gap:12px;margin-top:6px;">
-            ${r.finderPhone?`<span style="font-size:12px;color:var(--primary);">📞 Phone included</span>`:''}
+            ${r.finder_phone?`<span style="font-size:12px;color:var(--primary);">📞 Phone included</span>`:''}
             ${r.photo?`<span style="font-size:12px;color:var(--text-muted);">📷 Photo attached</span>`:''}
           </div>
         </div>`;
@@ -1179,7 +1183,7 @@ function renderItemsTab(items) {
         ? `<p class="text-muted text-sm" style="padding:16px 0;">No items added yet. Add your bags, keys, bike etc. so finders can easily identify what they found.</p>`
         : `<div style="margin-top:8px;">${items.map(i => `
             <div class="item-chip">
-              <span>${i.name}</span>
+              <span>${i.item_name}</span>
               <button onclick="removeItem('${i.id}')" title="Remove">✕</button>
             </div>`).join('')}</div>`
       }
@@ -1188,13 +1192,12 @@ function renderItemsTab(items) {
 
 // Build a self-contained found URL that works on ANY device (no localStorage on scanner's phone).
 // Encodes owner profile as a URL-safe base64 token so the finder page needs no DB lookup.
-function buildFoundUrl(user) {
-  const items = DB.getItems().filter(i => i.userId === user.id).map(i => i.name);
-  const ntfy  = JSON.parse(localStorage.getItem('findy_ntfy_' + user.id) || '{}');
+async function buildFoundUrl(user) {
+  const items = (await DB.getItems()).filter(i => i.user_id === user.id).map(i => i.item_name);
   const p = { n: user.name, e: user.email, uid: user.id };
   if (items.length)  p.i  = items;
-  if (ntfy.phone)    p.wp = ntfy.phone;
-  if (ntfy.apiKey)   p.wk = ntfy.apiKey;
+  if (user.wa_phone)    p.wp = user.wa_phone;
+  if (user.wa_api_key)   p.wk = user.wa_api_key;
   // URL-safe base64, handles unicode names
   const token = btoa(unescape(encodeURIComponent(JSON.stringify(p))))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
@@ -1204,11 +1207,11 @@ function buildFoundUrl(user) {
 // Encode a report into a self-contained URL — works on any device, no login needed.
 function buildReportUrl(report, ownerName) {
   const r = {
-    item: report.itemName || '',
+    item: report.item_name || '',
     msg:  report.message  || '',
-    fp:   report.finderPhone || '',
-    fe:   report.finderEmail || '',
-    ts:   report.timestamp,
+    fp:   report.finder_phone || '',
+    fe:   report.finder_email || '',
+    ts:   report.created_at,
     own:  ownerName || ''
   };
   const token = btoa(unescape(encodeURIComponent(JSON.stringify(r))))
@@ -1223,11 +1226,11 @@ function generateDashQR(user) {
   new QRCode(container, { text: url, width: 180, height: 180, colorDark: '#059669', colorLight: '#ffffff' });
 }
 
-window.switchTab = function(tab) {
+window.switchTab = async function(tab) {
   dashTab = tab;
   const user    = DB.getCurrentUser();
-  const reports = DB.getReports().filter(r => r.userId === user.id);
-  const items   = DB.getItems().filter(i => i.userId === user.id);
+  const reports = (await DB.getReports()).filter(r => r.user_id === user.id);
+  const items   = (await DB.getItems()).filter(i => i.user_id === user.id);
   const unread  = reports.filter(r => !r.read).length;
   document.querySelectorAll('.tab').forEach((t, i) => {
     t.classList.toggle('active', (i===0&&tab==='reports')||(i===1&&tab==='items'));
@@ -1238,18 +1241,18 @@ window.switchTab = function(tab) {
 window.showItemModal  = () => { document.getElementById('item-modal').style.display='flex'; setTimeout(()=>document.getElementById('item-name').focus(),50); };
 window.closeItemModal = () => { document.getElementById('item-modal').style.display='none'; };
 
-window.doAddItem = function() {
+window.doAddItem = async function() {
   const name = document.getElementById('item-name').value.trim();
   if (!name) { document.getElementById('item-error').innerHTML='<div class="alert alert-error">Please enter an item name.</div>'; return; }
   const user = DB.getCurrentUser();
-  DB.saveItems([...DB.getItems(), { id: uid(), userId: user.id, name }]);
+  await DB.insertItem({ id: uid(), user_id: user.id, item_name: name });
   closeItemModal();
-  switchTab('items');
+  await switchTab('items');
 };
 
-window.removeItem = function(id) {
-  DB.saveItems(DB.getItems().filter(i => i.id !== id));
-  switchTab('items');
+window.removeItem = async function(id) {
+  await DB.deleteItem(id);
+  await switchTab('items');
 };
 
 window.copyLink = function() {
@@ -1366,7 +1369,7 @@ window.doStickerPrint = function(cols, rows) {
 // ================================================================
 // FOUND PAGE
 // ================================================================
-function renderFound(params) {
+async function renderFound(params) {
   // --- Resolve owner profile ---
   // NEW path: profile is base64-encoded in the URL — works on ANY device
   let profile = null;
@@ -1376,15 +1379,16 @@ function renderFound(params) {
       profile = JSON.parse(decodeURIComponent(escape(atob(padded))));
     } catch(e) { console.warn('Failed to decode found profile:', e); }
   }
-  // FALLBACK: old-style ?u=CODE lookup in localStorage (demo mode + backwards compat)
+  // FALLBACK: old-style ?u=CODE lookup in database (demo mode + backwards compat)
   if (!profile && params.u) {
-    const user = DB.getUsers().find(u => u.code === params.u.toUpperCase());
+    const users = await DB.getUsers();
+    const user = users.find(u => u.code === params.u.toUpperCase());
     if (user) {
-      const ntfy = JSON.parse(localStorage.getItem('findy_ntfy_' + user.id) || '{}');
+      const items = await DB.getItems();
       profile = {
         n: user.name, e: user.email,
-        i: DB.getItems().filter(i => i.userId === user.id).map(i => i.name),
-        wp: ntfy.phone, wk: ntfy.apiKey,
+        i: items.filter(i => i.user_id === user.id).map(i => i.item_name),
+        wp: user.wa_phone, wk: user.wa_api_key,
         _uid: user.id   // keep for local report storage
       };
     }
@@ -1552,7 +1556,7 @@ window.previewPhoto = async function(input) {
   }
 };
 
-window.submitReport = function() {
+window.submitReport = async function() {
   const profile = window._foundOwner;
   if (!profile) return;
 
@@ -1573,8 +1577,8 @@ window.submitReport = function() {
 
   // Store report locally (visible in owner's dashboard if they open the app on this device)
   const storageId = profile._uid || profile.uid || ('x_' + (profile.e || '').replace(/[^a-z0-9]/gi, '_'));
-  const report = { id: uid(), userId: storageId, itemName, message, finderPhone: phone || null, finderEmail: email || null, photo: window._photoData || null, timestamp: new Date().toISOString(), read: false };
-  DB.saveReports([...DB.getReports(), report]);
+  const report = { id: uid(), user_id: storageId, item_name: itemName, message, finder_phone: phone || null, finder_email: email || null, photo: window._photoData || null, created_at: new Date().toISOString(), read: false };
+  await DB.insertReport(report);
   window._photoData = null;
 
   // Send notifications — works cross-device because we use profile data from the URL
@@ -1589,15 +1593,15 @@ window.submitReport = function() {
 // REPORT DETAIL
 // ================================================================
 async function renderReport(reportId, user) {
-  const reports = DB.getReports();
-  const report  = reports.find(r => r.id === reportId && r.userId === user.id);
+  const reports = await DB.getReports();
+  const report  = reports.find(r => r.id === reportId && r.user_id === user.id);
   if (!report) return `<div class="page text-center mt-24"><h2>Report not found</h2></div>`;
-  if (!report.read) DB.saveReports(reports.map(r => r.id === reportId ? {...r, read: true} : r));
-  const time = new Date(report.timestamp).toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const hasContact = report.finderEmail || report.finderPhone;
-  const emailSubject = encodeURIComponent(`Re: You found my ${report.itemName || 'item'} — thank you!`);
-  const emailBody    = encodeURIComponent(`Hi!\n\nThank you so much for finding my ${report.itemName || 'item'} and getting in touch via Findy.\n\nI'd love to arrange to pick it up — please let me know what works for you.\n\nThanks again!`);
-  const waNumber     = report.finderPhone ? report.finderPhone.replace(/[^0-9]/g, '') : '';
+  if (!report.read) await DB.updateReport(reportId, { read: true });
+  const time = new Date(report.created_at).toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const hasContact = report.finder_email || report.finder_phone;
+  const emailSubject = encodeURIComponent(`Re: You found my ${report.item_name || 'item'} — thank you!`);
+  const emailBody    = encodeURIComponent(`Hi!\n\nThank you so much for finding my ${report.item_name || 'item'} and getting in touch via Findy.\n\nI'd love to arrange to pick it up — please let me know what works for you.\n\nThanks again!`);
+  const waNumber     = report.finder_phone ? report.finder_phone.replace(/[^0-9]/g, '') : '';
 
   return `
     <div class="page">
@@ -1608,7 +1612,7 @@ async function renderReport(reportId, user) {
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border);">
           <div style="background:var(--primary-light);border-radius:12px;padding:12px;font-size:26px;flex-shrink:0;">📩</div>
           <div>
-            <div style="font-size:18px;font-weight:700;">${report.itemName ? `Someone found your ${report.itemName}` : 'Someone found one of your items'}</div>
+            <div style="font-size:18px;font-weight:700;">${report.item_name ? `Someone found your ${report.item_name}` : 'Someone found one of your items'}</div>
             <div class="text-muted" style="font-size:13px;margin-top:3px;">${time}</div>
           </div>
         </div>
@@ -1633,15 +1637,15 @@ async function renderReport(reportId, user) {
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;margin-bottom:4px;">
           <div style="font-size:13px;font-weight:700;color:#166534;margin-bottom:12px;">📬 Contact the finder</div>
           <div style="display:flex;flex-direction:column;gap:10px;">
-            ${report.finderEmail ? `
-              <a href="mailto:${report.finderEmail}?subject=${emailSubject}&body=${emailBody}"
+            ${report.finder_email ? `
+              <a href="mailto:${report.finder_email}?subject=${emailSubject}&body=${emailBody}"
                 class="btn btn-primary btn-full" style="text-decoration:none;text-align:center;">
-                📧 Reply by email — ${report.finderEmail}
+                📧 Reply by email — ${report.finder_email}
               </a>` : ''}
-            ${report.finderPhone ? `
+            ${report.finder_phone ? `
               <div style="display:flex;gap:8px;">
-                <a href="tel:${report.finderPhone}" class="btn btn-outline" style="flex:1;text-align:center;text-decoration:none;">
-                  📞 Call ${report.finderPhone}
+                <a href="tel:${report.finder_phone}" class="btn btn-outline" style="flex:1;text-align:center;text-decoration:none;">
+                  📞 Call ${report.finder_phone}
                 </a>
                 <a href="https://wa.me/${waNumber}" target="_blank"
                   class="btn" style="flex:1;text-align:center;text-decoration:none;background:#25d366;color:white;border-color:#25d366;font-weight:600;">
@@ -1735,10 +1739,10 @@ function renderViewReport(params) {
 const ADMIN_EMAIL = 'admin@findy.app';
 const ADMIN_PASS  = 'Findy2024!';
 
-function renderAdmin() {
+async function renderAdmin() {
   const isAdmin = localStorage.getItem('findy_admin') === 'yes';
   if (!isAdmin) return renderAdminLogin();
-  return renderAdminPanel();
+  return await renderAdminPanel();
 }
 
 function renderAdminLogin() {
@@ -1769,21 +1773,21 @@ function renderAdminLogin() {
     </div>`;
 }
 
-function renderAdminPanel(search) {
-  let users = [...DB.getUsers()].sort((a,b) => a.name.localeCompare(b.name));
+async function renderAdminPanel(search) {
+  let users = [...await DB.getUsers()].sort((a,b) => a.name.localeCompare(b.name));
   if (search) users = users.filter(u =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
   );
-  const reports = DB.getReports();
-  const items   = DB.getItems();
+  const reports = await DB.getReports();
+  const items   = await DB.getItems();
 
   return `
     <div class="page-wide">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 0 16px;flex-wrap:wrap;gap:12px;">
         <div>
           <h2>🔐 Admin Panel</h2>
-          <p class="text-muted text-sm mt-8">${DB.getUsers().length} total users · ${reports.length} reports</p>
+          <p class="text-muted text-sm mt-8">${(await DB.getUsers()).length} total users · ${reports.length} reports</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <button class="btn btn-ghost btn-sm" style="color:#dc2626;border-color:#fecaca;" onclick="adminWipeAll()">🗑 Wipe all data</button>
@@ -1808,9 +1812,9 @@ function renderAdminPanel(search) {
       <div style="display:flex;flex-direction:column;gap:8px;">
         ${users.length === 0 ? `<div class="empty-state"><div class="icon">🔍</div><h3>No users found</h3><p>Try a different search term.</p></div>` :
           users.map(u => {
-            const userReports = reports.filter(r => r.userId === u.id).length;
-            const userItems   = items.filter(i => i.userId === u.id).length;
-            const joined = new Date(u.createdAt).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+            const userReports = reports.filter(r => r.user_id === u.id).length;
+            const userItems   = items.filter(i => i.user_id === u.id).length;
+            const joined = new Date(u.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
             return `
               <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;flex-wrap:wrap;">
                 <div style="display:flex;align-items:center;gap:14px;min-width:0;">
@@ -1862,16 +1866,14 @@ window.doAdminLogout = function() {
   render(); // can't use navigate('/admin') — already on that page, no hashchange fires
 };
 
-window.adminWipeAll = function() {
-  const count = DB.getUsers().length;
+window.adminWipeAll = async function() {
+  const users = await DB.getUsers();
+  const count = users.length;
   if (!confirm(`This will permanently delete all ${count} user account(s), all their reports, and all their items. This cannot be undone.\n\nAre you sure?`)) return;
-  // Remove all known findy keys from localStorage
-  const keysToRemove = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k && k.startsWith('findy_')) keysToRemove.push(k);
+  // Delete all users (which cascades to delete their reports and items)
+  for (const user of users) {
+    await DB.deleteUser(user.id);
   }
-  keysToRemove.forEach(k => localStorage.removeItem(k));
   sessionStorage.removeItem('findy_verify_code');
   sessionStorage.removeItem('findy_reset_code');
   sessionStorage.removeItem('findy_reset_email');
@@ -1879,34 +1881,40 @@ window.adminWipeAll = function() {
 };
 
 let adminSearchTimer;
-window.refreshAdminSearch = function(val) {
+window.refreshAdminSearch = async function(val) {
   clearTimeout(adminSearchTimer);
-  adminSearchTimer = setTimeout(() => {
+  adminSearchTimer = setTimeout(async () => {
     const panel = document.querySelector('.page-wide');
-    if (panel) panel.outerHTML = renderAdminPanel(val);
+    if (panel) panel.outerHTML = await renderAdminPanel(val);
     // re-attach search focus
     const inp = document.getElementById('admin-search');
     if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
   }, 200);
 };
 
-window.adminDeleteUser = function(id, name) {
+window.adminDeleteUser = async function(id, name) {
   if (!confirm(`Delete "${name}" and all their data? This cannot be undone.`)) return;
-  DB.saveUsers(DB.getUsers().filter(u => u.id !== id));
-  DB.saveReports(DB.getReports().filter(r => r.userId !== id));
-  DB.saveItems(DB.getItems().filter(i => i.userId !== id));
+  await DB.deleteUser(id);
+  // Also delete their reports and items
+  const reports = await DB.getReports();
+  const items = await DB.getItems();
+  for (const r of reports.filter(r => r.user_id === id)) {
+    await DB.deleteReport(r.id);
+  }
+  for (const i of items.filter(i => i.user_id === id)) {
+    await DB.deleteItem(i.id);
+  }
   // Sign out if it's the current user
   const current = DB.getCurrentUser();
   if (current && current.id === id) DB.clearCurrentUser();
   render();
 };
 
-window.adminResetPin = function(id, name) {
+window.adminResetPin = async function(id, name) {
   const newPin = prompt(`Reset PIN for "${name}".\n\nEnter a new 4-digit PIN:`);
   if (newPin === null) return; // cancelled
   if (!/^\d{4}$/.test(newPin)) { alert('PIN must be exactly 4 digits.'); return; }
-  const users = DB.getUsers().map(u => u.id === id ? { ...u, password: newPin } : u);
-  DB.saveUsers(users);
+  await DB.updateUser(id, { password: newPin });
   render();
   alert(`✅ PIN for "${name}" has been reset to ${newPin}.`);
 };
@@ -1968,8 +1976,7 @@ window.copyShareLink = function(url) {
 // ================================================================
 async function renderSetup(user) {
   const emailOk   = user.email_verified;
-  const ntfy      = JSON.parse(localStorage.getItem('findy_ntfy_' + user.id) || '{}');
-  const ntfyOk    = !!(ntfy.phone && ntfy.apiKey);
+  const ntfyOk    = !!(user.wa_phone && user.wa_api_key);
   const firstName = user.name.split(' ')[0];
 
   const step1Done = emailOk;
@@ -2014,7 +2021,7 @@ async function renderSetup(user) {
 
       <!-- STEP 2: WHATSAPP -->
       ${(()=>{
-        const knownPhone = ntfy.phone || user.phone || '';
+        const knownPhone = user.wa_phone || '';
         return `
         <div class="card" style="border:2px solid ${step2Done ? '#059669' : 'var(--border)'};${!step1Done ? 'opacity:0.45;pointer-events:none;' : ''}transition:border-color .3s,opacity .3s;">
           <div style="display:flex;align-items:center;gap:14px;margin-bottom:${step2Done ? '0' : '16px'};">
@@ -2080,9 +2087,8 @@ async function renderSetup(user) {
 // SETTINGS
 // ================================================================
 async function renderSettings(user) {
-  const ntfy    = JSON.parse(localStorage.getItem('findy_ntfy_' + user.id) || '{}');
   const emailOk = user.email_verified;
-  const ntfyOk  = !!(ntfy.phone && ntfy.apiKey);
+  const ntfyOk  = !!(user.wa_phone && user.wa_api_key);
   return `
     <div class="page" style="max-width:600px;">
       <button class="btn btn-ghost btn-sm mt-16" onclick="navigate('/dashboard')">← Back to dashboard</button>
@@ -2128,11 +2134,11 @@ async function renderSettings(user) {
         <a href="https://wa.me/34623786449?text=I+allow+callmebot+to+send+me+messages" target="_blank" class="btn btn-primary btn-full" style="margin-bottom:14px;text-decoration:none;display:block;text-align:center;background:#25d366;border-color:#25d366;">Open WhatsApp to activate →</a>
         <div class="form-group">
           <label>Your phone number</label>
-          ${phoneInputHTML('wa-phone', ntfy.phone||'')}
+          ${phoneInputHTML('wa-phone', user.wa_phone||'')}
         </div>
         <div class="form-group">
           <label>Verification code (from their reply)</label>
-          <input type="text" id="wa-key" placeholder="e.g. 123456" value="${ntfy.apiKey||''}" autocomplete="off" style="font-family:monospace;font-size:13px;">
+          <input type="text" id="wa-key" placeholder="e.g. 123456" value="${user.wa_api_key||''}" autocomplete="off" style="font-family:monospace;font-size:13px;">
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-primary btn-sm" onclick="saveWhatsApp()">💾 Save</button>
@@ -2181,14 +2187,16 @@ window.sendVerifyEmail = function() {
 };
 
 // Used from Settings page — goes to dashboard after verify
-window.checkVerifyCode = function() {
+window.checkVerifyCode = async function() {
   const input  = document.getElementById('verify-code-input');
   const msg    = document.getElementById('email-verify-msg');
   const stored = sessionStorage.getItem('findy_verify_code');
   const u      = DB.getCurrentUser();
   if (!input || !stored || !u) return;
   if (input.value.trim() === stored) {
-    localStorage.setItem('findy_email_verified_' + u.id, 'yes');
+    await DB.updateUser(u.id, { email_verified: true });
+    u.email_verified = true;
+    DB.setCurrentUser(u);
     if (msg) msg.innerHTML = '<div class="alert alert-success">✅ Email verified! Taking you to your QR code…</div>';
     setTimeout(() => navigate('/dashboard'), 1000);
   } else {
@@ -2197,14 +2205,16 @@ window.checkVerifyCode = function() {
 };
 
 // Used from Setup page — re-renders setup so Step 2 unlocks
-window.checkVerifyCodeSetup = function() {
+window.checkVerifyCodeSetup = async function() {
   const input  = document.getElementById('verify-code-input');
   const msg    = document.getElementById('email-verify-msg');
   const stored = sessionStorage.getItem('findy_verify_code');
   const u      = DB.getCurrentUser();
   if (!input || !stored || !u) return;
   if (input.value.trim() === stored) {
-    localStorage.setItem('findy_email_verified_' + u.id, 'yes');
+    await DB.updateUser(u.id, { email_verified: true });
+    u.email_verified = true;
+    DB.setCurrentUser(u);
     if (msg) msg.innerHTML = '<div class="alert alert-success">✅ Email verified!</div>';
     setTimeout(() => render(), 600);
   } else {
@@ -2213,24 +2223,30 @@ window.checkVerifyCodeSetup = function() {
 };
 
 // Used from Settings page — goes to dashboard after save
-window.saveWhatsApp = function() {
+window.saveWhatsApp = async function() {
   const u = DB.getCurrentUser();
   if (!u) return;
   const phone  = document.getElementById('wa-phone').value.trim();
   const apiKey = document.getElementById('wa-key').value.trim();
-  localStorage.setItem('findy_ntfy_' + u.id, JSON.stringify({ phone, apiKey }));
+  await DB.updateUser(u.id, { wa_phone: phone, wa_api_key: apiKey });
+  u.wa_phone = phone;
+  u.wa_api_key = apiKey;
+  DB.setCurrentUser(u);
   const msg = document.getElementById('ntfy-msg');
   if (msg) msg.innerHTML = '<div class="alert alert-success">✅ WhatsApp alerts saved! Taking you to your QR code…</div>';
   setTimeout(() => navigate('/dashboard'), 900);
 };
 
 // Used from Setup page — re-renders setup so the success CTA appears
-window.saveWhatsAppSetup = function() {
+window.saveWhatsAppSetup = async function() {
   const u = DB.getCurrentUser();
   if (!u) return;
   const phone  = document.getElementById('wa-phone').value.trim();
   const apiKey = document.getElementById('wa-key').value.trim();
-  localStorage.setItem('findy_ntfy_' + u.id, JSON.stringify({ phone, apiKey }));
+  await DB.updateUser(u.id, { wa_phone: phone, wa_api_key: apiKey });
+  u.wa_phone = phone;
+  u.wa_api_key = apiKey;
+  DB.setCurrentUser(u);
   const msg = document.getElementById('ntfy-msg');
   if (msg) msg.innerHTML = '<div class="alert alert-success">✅ WhatsApp saved!</div>';
   setTimeout(() => render(), 600);
@@ -2239,18 +2255,19 @@ window.saveWhatsAppSetup = function() {
 window.testWhatsApp = function() {
   const u = DB.getCurrentUser();
   if (!u) return;
-  const cfg = JSON.parse(localStorage.getItem('findy_ntfy_' + u.id) || '{}');
-  if (!cfg.phone || !cfg.apiKey) return;
+  const phone = u.wa_phone;
+  const apiKey = u.wa_api_key;
+  if (!phone || !apiKey) return;
   const msg = document.getElementById('ntfy-msg');
   if (msg) msg.innerHTML = '<div class="alert alert-info">⏳ Sending test WhatsApp…</div>';
   const text = encodeURIComponent('Test from Findy — your WhatsApp alerts are working! 🎉');
-  fetch(`https://api.callmebot.com/whatsapp.php?phone=${cfg.phone}&text=${text}&apikey=${cfg.apiKey}`)
+  fetch(`https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${text}&apikey=${apiKey}`)
   .then(r  => { if(msg) msg.innerHTML = r.ok ? '<div class="alert alert-success">✅ Test sent! Check your WhatsApp.</div>' : '<div class="alert alert-error">❌ Failed — check your phone number and verification code.</div>'; })
   .catch(e => { if(msg) msg.innerHTML = `<div class="alert alert-error">❌ Error: ${e.message}</div>`; });
 };
 
 async function sendNotifications(owner, report) {
-  const itemName = report.itemName || 'your item';
+  const itemName = report.item_name || 'your item';
 
   // Normalise: owner can be a DB user object {id,name,email} or a URL profile {n,e,wp,wk,uid}
   const ownerEmail = owner.email || owner.e || '';
@@ -2263,10 +2280,9 @@ async function sendNotifications(owner, report) {
   // Resolve notification credentials
   let emailEnabled, waPhone, waApiKey;
   if (owner.id) {
-    emailEnabled = localStorage.getItem('findy_email_verified_' + owner.id) === 'yes';
-    const waCfg  = JSON.parse(localStorage.getItem('findy_ntfy_' + owner.id) || '{}');
-    waPhone  = waCfg.phone;
-    waApiKey = waCfg.apiKey;
+    emailEnabled = owner.email_verified;
+    waPhone  = owner.wa_phone;
+    waApiKey = owner.wa_api_key;
   } else {
     emailEnabled = !!ownerEmail;
     waPhone  = owner.wp || '';
@@ -2275,8 +2291,8 @@ async function sendNotifications(owner, report) {
 
   // Build contact lines
   const contactLines = [];
-  if (report.finderEmail) contactLines.push(`Email: ${report.finderEmail}`);
-  if (report.finderPhone) contactLines.push(`Phone: ${report.finderPhone}`);
+  if (report.finder_email) contactLines.push(`Email: ${report.finder_email}`);
+  if (report.finder_phone) contactLines.push(`Phone: ${report.finder_phone}`);
   const contactText = contactLines.length
     ? `How to reach them:\n${contactLines.join('\n')}`
     : `The finder didn't leave any contact details.`;
