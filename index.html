@@ -505,7 +505,7 @@ async function render() {
 
   // Generate QR after render if on dashboard
   if (path === '/dashboard' && user) {
-    generateDashQR(user);
+    await generateDashQR(user);
     await startDashboardPolling(user);
   } else {
     stopDashboardPolling();
@@ -1199,7 +1199,7 @@ function renderItemsTab(items) {
 // Build a self-contained found URL that works on ANY device (no localStorage on scanner's phone).
 // Encodes owner profile as a URL-safe base64 token so the finder page needs no DB lookup.
 async function buildFoundUrl(user) {
-  const items = (await DB.getItems()).filter(i => i.user_id === user.id).map(i => i.item_name);
+  const items = (await DB.getItems()).filter(i => i.user_id === user.id).map(i => i.name);
   const p = { n: user.name, e: user.email, uid: user.id };
   if (items.length)  p.i  = items;
   if (user.wa_phone)    p.wp = user.wa_phone;
@@ -1225,10 +1225,10 @@ function buildReportUrl(report, ownerName) {
   return `${location.origin}${location.pathname}#/view-report?r=${token}`;
 }
 
-function generateDashQR(user) {
+async function generateDashQR(user) {
   const container = document.getElementById('dash-qr');
   if (!container || container.childElementCount > 0) return;
-  const url = buildFoundUrl(user);
+  const url = await buildFoundUrl(user);
   new QRCode(container, { text: url, width: 180, height: 180, colorDark: '#059669', colorLight: '#ffffff' });
 }
 
@@ -1261,9 +1261,9 @@ window.removeItem = async function(id) {
   await switchTab('items');
 };
 
-window.copyLink = function() {
+window.copyLink = async function() {
   const user = DB.getCurrentUser();
-  const url  = buildFoundUrl(user);
+  const url  = await buildFoundUrl(user);
   navigator.clipboard.writeText(url).then(() => alert('Link copied! You can share this URL directly or embed it in a QR code.'));
 };
 
