@@ -1393,7 +1393,7 @@ async function renderFound(params) {
       const items = await DB.getItems();
       profile = {
         n: user.name, e: user.email,
-        i: items.filter(i => i.user_id === user.id).map(i => i.item_name),
+        i: items.filter(i => i.user_id === user.id).map(i => i.name),
         wp: user.wa_phone, wk: user.wa_api_key,
         _uid: user.id   // keep for local report storage
       };
@@ -1581,9 +1581,17 @@ window.submitReport = async function() {
 
   if (!message) { errEl.innerHTML = '<div class="alert alert-error">Please write a message for the owner.</div>'; return; }
 
-  // Store report locally (visible in owner's dashboard if they open the app on this device)
-  const storageId = profile._uid || profile.uid || ('x_' + (profile.e || '').replace(/[^a-z0-9]/gi, '_'));
-  const report = { id: uid(), user_id: storageId, item_name: itemName, message, finder_phone: phone || null, finder_email: email || null, photo: window._photoData || null, created_at: new Date().toISOString(), read: false };
+  // Resolve owner's database UUID
+  let ownerId = profile._uid || profile.uid || null;
+  // If we only have email, look up the user to get their UUID
+  if (!ownerId && profile.e) {
+    const users = await DB.getUsers();
+    const owner = users.find(u => u.email === profile.e);
+    if (owner) ownerId = owner.id;
+  }
+  if (!ownerId) { errEl.innerHTML = '<div class="alert alert-error">Could not identify the owner. Please try scanning the QR code again.</div>'; return; }
+
+  const report = { user_id: ownerId, item_name: itemName, message, finder_phone: phone || null, finder_email: email || null, photo: window._photoData || null, read: false };
   await DB.insertReport(report);
   window._photoData = null;
 
