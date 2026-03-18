@@ -269,7 +269,7 @@
 <body>
 <div id="app"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
 (function(){
   var urls=['https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js','https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js'];
@@ -289,7 +289,15 @@ const EJST = 'template_4qglzud';
 // ================================================================
 const SUPABASE_URL = 'https://vjozwfjnowbjtgdogcnb.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_AtZyuW0ZQCmmkhi80U0EDQ_3fdP1LcK';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabase;
+try {
+  const sb = window.supabase;
+  if (!sb) throw new Error('Supabase library not loaded');
+  supabase = sb.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} catch(e) {
+  document.getElementById('app').innerHTML = '<div style="padding:40px;text-align:center;"><h2>Loading error</h2><p style="color:red;">' + e.message + '</p><p>Please refresh the page.</p></div>';
+  throw e;
+}
 
 // ================================================================
 // PHONE COUNTRY CODES
@@ -2360,7 +2368,10 @@ window.installPWA = () => { window._installPrompt?.prompt(); window._installProm
 // ================================================================
 // BOOT
 // ================================================================
-render();
+render().catch(e => {
+  console.error('Render error:', e);
+  document.getElementById('app').innerHTML = '<div style="padding:40px;text-align:center;"><h2>App error</h2><p style="color:red;">' + e.message + '</p><p>Please refresh or try again.</p></div>';
+});
 </script>
 </body>
 </html>
