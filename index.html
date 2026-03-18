@@ -799,21 +799,26 @@ function renderHome(user) {
 }
 
 window.tryDemo = async function() {
-  // Create a demo user if needed
+  // Create a demo user in Supabase if needed
   const users = await DB.getUsers();
   let demo = users.find(u => u.code === 'DEMO99');
   if (!demo) {
-    demo = { id: 'demo', name: 'Demo User', email: 'demo@findy.app', password: '0000', code: 'DEMO99', created_at: new Date().toISOString() };
-    await DB.insertUser(demo);
-    // Add some demo items
-    const items = await DB.getItems();
-    if (!items.find(i => i.user_id === 'demo')) {
-      await DB.insertItem({ id: uid(), user_id: 'demo', item_name: 'Black backpack' });
-      await DB.insertItem({ id: uid(), user_id: 'demo', item_name: 'House keys' });
-      await DB.insertItem({ id: uid(), user_id: 'demo', item_name: 'Passport wallet' });
+    demo = await DB.insertUser({ name: 'Demo User', email: 'demo@findy.app', pin: '0000', code: 'DEMO99', email_verified: true });
+    if (demo) {
+      await DB.insertItem({ user_id: demo.id, name: 'Black backpack', emoji: '🎒' });
+      await DB.insertItem({ user_id: demo.id, name: 'House keys', emoji: '🔑' });
+      await DB.insertItem({ user_id: demo.id, name: 'Passport wallet', emoji: '📔' });
     }
   }
-  navigate('/found?u=DEMO99');
+  if (demo) {
+    // Build a self-contained found URL (works cross-device)
+    const items = (await DB.getItems()).filter(i => i.user_id === demo.id);
+    const profile = { n: demo.name, e: demo.email, uid: demo.id, i: items.map(i => i.name) };
+    const token = btoa(unescape(encodeURIComponent(JSON.stringify(profile)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    navigate('/found?d=' + token);
+  } else {
+    navigate('/found?u=DEMO99');
+  }
 };
 
 // ================================================================
