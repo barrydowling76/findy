@@ -998,6 +998,7 @@ window.sendResetCode = async function() {
     body: JSON.stringify({
       service_id: EJSS, template_id: EJST, user_id: EJSK,
       template_params: {
+        from_name: 'Findy',
         to_email: email,
         to_name:  firstName,
         subject:  'Your Findy PIN reset code',
@@ -2164,6 +2165,7 @@ window.sendVerifyEmail = function() {
     body: JSON.stringify({
       service_id: EJSS, template_id: EJST, user_id: EJSK,
       template_params: {
+        from_name: 'Findy',
         to_email: user.email,
         to_name:  firstName,
         subject:  emailOk ? 'Findy test — your email alerts are working!' : `Your Findy verification code: ${code}`,
