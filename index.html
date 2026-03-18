@@ -289,15 +289,7 @@ const EJST = 'template_4qglzud';
 // ================================================================
 const SUPABASE_URL = 'https://vjozwfjnowbjtgdogcnb.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_AtZyuW0ZQCmmkhi80U0EDQ_3fdP1LcK';
-let supabase;
-try {
-  const sb = window.supabase;
-  if (!sb) throw new Error('Supabase library not loaded');
-  supabase = sb.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-} catch(e) {
-  document.getElementById('app').innerHTML = '<div style="padding:40px;text-align:center;"><h2>Loading error</h2><p style="color:red;">' + e.message + '</p><p>Please refresh the page.</p></div>';
-  throw e;
-}
+const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ================================================================
 // PHONE COUNTRY CODES
@@ -397,47 +389,47 @@ window.updatePhoneField = function(idPrefix) {
 // ================================================================
 const DB = {
   getUsers: async () => {
-    const { data, error } = await supabase.from('users').select('*');
+    const { data, error } = await sbClient.from('users').select('*');
     return error ? [] : (data || []);
   },
   insertUser: async (user) => {
-    const { data, error } = await supabase.from('users').insert([user]).select();
+    const { data, error } = await sbClient.from('users').insert([user]).select();
     return error ? null : (data ? data[0] : null);
   },
   updateUser: async (id, updates) => {
-    const { data, error } = await supabase.from('users').update(updates).eq('id', id).select();
+    const { data, error } = await sbClient.from('users').update(updates).eq('id', id).select();
     return error ? null : (data ? data[0] : null);
   },
   deleteUser: async (id) => {
-    const { error } = await supabase.from('users').delete().eq('id', id);
+    const { error } = await sbClient.from('users').delete().eq('id', id);
     return !error;
   },
   getItems: async () => {
-    const { data, error } = await supabase.from('items').select('*');
+    const { data, error } = await sbClient.from('items').select('*');
     return error ? [] : (data || []);
   },
   insertItem: async (item) => {
-    const { data, error } = await supabase.from('items').insert([item]).select();
+    const { data, error } = await sbClient.from('items').insert([item]).select();
     return error ? null : (data ? data[0] : null);
   },
   deleteItem: async (id) => {
-    const { error } = await supabase.from('items').delete().eq('id', id);
+    const { error } = await sbClient.from('items').delete().eq('id', id);
     return !error;
   },
   getReports: async () => {
-    const { data, error } = await supabase.from('reports').select('*');
+    const { data, error } = await sbClient.from('reports').select('*');
     return error ? [] : (data || []);
   },
   insertReport: async (report) => {
-    const { data, error } = await supabase.from('reports').insert([report]).select();
+    const { data, error } = await sbClient.from('reports').insert([report]).select();
     return error ? null : (data ? data[0] : null);
   },
   updateReport: async (id, updates) => {
-    const { data, error } = await supabase.from('reports').update(updates).eq('id', id).select();
+    const { data, error } = await sbClient.from('reports').update(updates).eq('id', id).select();
     return error ? null : (data ? data[0] : null);
   },
   deleteReport: async (id) => {
-    const { error } = await supabase.from('reports').delete().eq('id', id);
+    const { error } = await sbClient.from('reports').delete().eq('id', id);
     return !error;
   },
   getCurrentUser: () => JSON.parse(sessionStorage.getItem('findy_user') || 'null'),
