@@ -1552,46 +1552,46 @@ window.toggleOtherItem = function(sel) {
   document.getElementById('other-group').style.display = sel.value === '__other__' ? 'block' : 'none';
 };
 
-function showPhotoSuccess(dataUrl, filename) {
+function showPhotoPreview(jpegDataUrl) {
   const ph = document.getElementById('photo-placeholder');
-  // Always try to show the image — iOS Safari can render HEIC natively
-  const imgId = 'photo-prev-' + Date.now();
-  ph.innerHTML = `<img id="${imgId}" src="${dataUrl}" class="photo-preview" style="max-width:100%;border-radius:8px;margin-top:12px;border:1px solid var(--border);"><p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Tap to change</p>`;
-  // If the image fails to render, show a text fallback
-  document.getElementById(imgId).onerror = function() {
-    ph.innerHTML = `<div style="font-size:36px;">📎</div><p style="font-size:14px;color:var(--primary);font-weight:600;margin-top:8px;">Image attached ✓</p><p style="font-size:12px;color:var(--text-muted);margin-top:4px;">${filename||'photo'} · Tap to change</p>`;
-  };
-  window._photoData = dataUrl;
+  ph.innerHTML = `<img src="${jpegDataUrl}" style="max-width:100%;border-radius:8px;margin-top:12px;border:1px solid var(--border);"><p style="font-size:12px;color:var(--text-muted);margin-top:8px;">✅ Photo attached · Tap to change</p>`;
+  window._photoData = jpegDataUrl;
 }
 
-function blobToJpegViaCanvas(blob) {
+// Convert any image file to a JPEG data URL via canvas.
+// On iOS Safari, the browser can decode HEIC natively into <img>,
+// so we load the blob URL into an img, draw it on canvas, export as JPEG.
+// This guarantees JPEG output that works everywhere: form preview, email, reports.
+function fileToJpeg(file, maxSize) {
+  maxSize = maxSize || 1200;
   return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
       try {
-        const MAX=1600; let w=img.naturalWidth, h=img.naturalHeight;
-        if(w>MAX||h>MAX){const r=Math.min(MAX/w,MAX/h);w=Math.round(w*r);h=Math.round(h*r);}
-        const c=document.createElement('canvas'); c.width=w; c.height=h;
-        c.getContext('2d').drawImage(img,0,0,w,h);
-        const result = c.toDataURL('image/jpeg',0.8);
-        URL.revokeObjectURL(url);
-        // Validate the result — canvas can silently fail on iOS with large images
-        if (!result || result === 'data:,' || result.length < 1000) {
-          reject(new Error('canvas produced empty result'));
-        } else {
-          resolve(result);
+        let w = img.naturalWidth, h = img.naturalHeight;
+        // Scale down large images
+        if (w > maxSize || h > maxSize) {
+          const ratio = Math.min(maxSize / w, maxSize / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
         }
-      } catch(e){URL.revokeObjectURL(url);reject(e);}
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const jpeg = canvas.toDataURL('image/jpeg', 0.75);
+        URL.revokeObjectURL(url);
+        // Validate — canvas can silently fail on iOS for very large images
+        if (!jpeg || jpeg === 'data:,' || jpeg.length < 500) {
+          reject(new Error('Canvas produced empty result'));
+        } else {
+          resolve(jpeg);
+        }
+      } catch(e) { URL.revokeObjectURL(url); reject(e); }
     };
-    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('load failed'));};
-    img.src=url;
-  });
-}
-
-function readAsDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const r=new FileReader(); r.onload=e=>resolve(e.target.result); r.onerror=reject; r.readAsDataURL(blob);
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+    img.src = url;
   });
 }
 
@@ -1601,31 +1601,35 @@ window.previewPhoto = async function(input) {
   const ph = document.getElementById('photo-placeholder');
   ph.innerHTML = `<div style="font-size:28px;">⏳</div><p style="font-size:14px;color:var(--text-muted);margin-top:8px;">Processing photo…</p>`;
 
-  // Attempt 1: canvas — works for JPEG/PNG/WebP everywhere, and HEIC on iOS Safari
-  try { showPhotoSuccess(await blobToJpegViaCanvas(file), file.name); return; } catch(_){}
+  // Attempt 1: Direct canvas conversion (works for JPEG/PNG/WebP + HEIC on iOS Safari)
+  try {
+    const jpeg = await fileToJpeg(file, 1200);
+    showPhotoPreview(jpeg);
+    return;
+  } catch(e) { console.warn('Canvas attempt failed:', e.message); }
 
-  // Attempt 2: heic2any — converts HEIC on desktop browsers
+  // Attempt 2: Try smaller size in case iOS ran out of memory on the canvas
+  try {
+    const jpeg = await fileToJpeg(file, 800);
+    showPhotoPreview(jpeg);
+    return;
+  } catch(e) { console.warn('Small canvas attempt failed:', e.message); }
+
+  // Attempt 3: heic2any library (converts HEIC on desktop browsers that can't decode it natively)
   try {
     if (typeof heic2any !== 'undefined') {
       ph.innerHTML = `<div style="font-size:28px;">⏳</div><p style="font-size:14px;color:var(--text-muted);margin-top:8px;">Converting image…</p>`;
-      const result = await heic2any({blob:file, toType:'image/jpeg', quality:0.85});
-      const blob = Array.isArray(result) ? result[0] : result;
-      showPhotoSuccess(await blobToJpegViaCanvas(blob), file.name);
+      const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.8 });
+      const converted = Array.isArray(result) ? result[0] : result;
+      const jpeg = await fileToJpeg(converted, 1200);
+      showPhotoPreview(jpeg);
       return;
     }
-  } catch(_){}
+  } catch(e) { console.warn('heic2any attempt failed:', e.message); }
 
-  // Attempt 3: store raw — no preview but file IS attached and sent with the report
-  try {
-    const dataUrl = await readAsDataUrl(file);
-    if (dataUrl.length > 4*1024*1024) {
-      ph.innerHTML = `<div style="font-size:28px;">⚠️</div><p style="font-size:14px;color:#b91c1c;margin-top:8px;">Photo is too large. Please try a smaller image.</p>`;
-      return;
-    }
-    showPhotoSuccess(dataUrl, file.name);
-  } catch(_) {
-    ph.innerHTML = `<div style="font-size:28px;">⚠️</div><p style="font-size:14px;color:#b91c1c;margin-top:8px;">Could not attach this photo. Please try a different image.</p>`;
-  }
+  // All conversion failed
+  ph.innerHTML = `<div style="font-size:28px;">⚠️</div><p style="font-size:14px;color:#b91c1c;margin-top:8px;">Could not process this photo. Please try taking the photo again or choose a different image.</p>`;
+  window._photoData = null;
 };
 
 window.submitReport = async function() {
