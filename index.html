@@ -476,9 +476,9 @@ async function render() {
       <button class="install-close" onclick="window._dismissed=true;render()">✕</button>
     </div>` : '';
 
-  const isFound = path === '/found';
-  const nav  = isFound ? '' : await renderNav(user);
-  const foot = isFound ? '' : `<div class="footer">🏷️ Findy &nbsp;·&nbsp; Tag Your Things</div>`;
+  const isMinimal = path === '/found' || path === '/demo';
+  const nav  = isMinimal ? '' : await renderNav(user);
+  const foot = isMinimal ? '' : `<div class="footer">🏷️ Findy &nbsp;·&nbsp; Tag Your Things</div>`;
 
   let content = '';
   if      (path === '/')          content = renderHome(user);
@@ -496,6 +496,7 @@ async function render() {
   }
   else if (path === '/settings')  content = user ? await renderSettings(user) : renderLogin('Please sign in first.');
   else if (path === '/admin')       content = await renderAdmin();
+  else if (path === '/demo')         content = await renderDemo();
   else if (path === '/found')       content = await renderFound(params);
   else if (path === '/view-report') content = renderViewReport(params);
   else if (path === '/report')      content = user ? await renderReport(params.id, user) : renderLogin('Please sign in to view reports.');
@@ -798,8 +799,11 @@ function renderHome(user) {
     </div>`;
 }
 
-window.tryDemo = async function() {
-  // Create a demo user in Supabase if needed
+window.tryDemo = function() {
+  navigate('/demo');
+};
+
+async function ensureDemoUser() {
   const users = await DB.getUsers();
   let demo = users.find(u => u.code === 'DEMO99');
   if (!demo) {
@@ -810,16 +814,67 @@ window.tryDemo = async function() {
       await DB.insertItem({ user_id: demo.id, name: 'Passport wallet', emoji: '📔' });
     }
   }
-  if (demo) {
-    // Build a self-contained found URL (works cross-device)
-    const items = (await DB.getItems()).filter(i => i.user_id === demo.id);
-    const profile = { n: demo.name, e: demo.email, uid: demo.id, i: items.map(i => i.name) };
-    const token = btoa(unescape(encodeURIComponent(JSON.stringify(profile)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-    navigate('/found?d=' + token);
-  } else {
-    navigate('/found?u=DEMO99');
-  }
-};
+  return demo;
+}
+
+async function getDemoFoundUrl() {
+  const demo = await ensureDemoUser();
+  if (!demo) return null;
+  const items = (await DB.getItems()).filter(i => i.user_id === demo.id);
+  const profile = { n: demo.name, e: demo.email, uid: demo.id, i: items.map(i => i.name) };
+  const token = btoa(unescape(encodeURIComponent(JSON.stringify(profile)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  return `${location.origin}${location.pathname}#/found?d=${token}`;
+}
+
+async function renderDemo() {
+  const foundUrl = await getDemoFoundUrl();
+  // Generate QR after render
+  setTimeout(() => {
+    const container = document.getElementById('demo-qr');
+    if (container && foundUrl && container.childElementCount === 0) {
+      new QRCode(container, { text: foundUrl, width: 120, height: 120, colorDark: '#059669', colorLight: '#ffffff' });
+    }
+  }, 100);
+
+  return `
+    <div class="page" style="max-width:600px;">
+      <div style="text-align:center;padding:24px 0 16px;">
+        <h2 style="font-size:24px;font-weight:800;">Try the finder experience</h2>
+        <p class="text-muted" style="margin-top:8px;">Imagine you found someone's backpack on a park bench. You notice a small sticker on it...</p>
+      </div>
+
+      <!-- Scene: item with QR sticker -->
+      <div style="position:relative;background:linear-gradient(135deg,#f0fdf4,#e0f2fe);border-radius:20px;padding:40px 20px 32px;text-align:center;margin-bottom:24px;border:2px solid #d1fae5;">
+
+        <!-- The "item" -->
+        <div style="font-size:100px;line-height:1;margin-bottom:8px;">🎒</div>
+        <p style="font-weight:700;font-size:18px;color:#1f2937;margin-bottom:20px;">Someone's backpack</p>
+
+        <!-- The sticker on the item -->
+        <div onclick="location.hash='${foundUrl ? foundUrl.split('#')[1] : '/found?u=DEMO99'}'"
+             style="cursor:pointer;display:inline-block;background:white;border-radius:16px;padding:16px 20px;box-shadow:0 4px 20px rgba(0,0,0,0.12);border:2px solid #d1fae5;transition:transform 0.2s,box-shadow 0.2s;"
+             onmouseenter="this.style.transform='scale(1.05)';this.style.boxShadow='0 6px 24px rgba(5,150,105,0.25)'"
+             onmouseleave="this.style.transform='scale(1)';this.style.boxShadow='0 4px 20px rgba(0,0,0,0.12)'"
+        >
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <span style="font-size:18px;">🏷️</span>
+            <span style="font-weight:800;font-size:14px;color:#059669;letter-spacing:0.5px;">FINDY</span>
+          </div>
+          <div id="demo-qr" style="display:flex;justify-content:center;margin:8px 0;"></div>
+          <p style="font-size:11px;color:#6b7280;margin-top:8px;font-weight:600;">Hey, I lost this!<br>Scan to contact me</p>
+        </div>
+
+        <p style="font-size:13px;color:#059669;font-weight:600;margin-top:20px;">👆 Tap the sticker to try it</p>
+      </div>
+
+      <div class="card" style="text-align:center;">
+        <h3 style="font-size:16px;margin-bottom:8px;">That's it — that's Findy!</h3>
+        <p class="text-muted" style="font-size:14px;line-height:1.6;">When someone scans your sticker, they see a simple form to leave you a message. You get notified instantly by email and WhatsApp.</p>
+        <button class="btn btn-primary btn-full mt-16" onclick="navigate('/signup')">✨ Get my own QR code — free →</button>
+        <button class="btn btn-ghost btn-full mt-8" onclick="navigate('/')">← Back to homepage</button>
+      </div>
+    </div>`;
+}
 
 // ================================================================
 // AUTH
