@@ -1553,10 +1553,14 @@ window.toggleOtherItem = function(sel) {
 };
 
 function showPhotoSuccess(dataUrl, filename) {
-  const canPreview = dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/png') || dataUrl.startsWith('data:image/webp');
-  document.getElementById('photo-placeholder').innerHTML = canPreview
-    ? `<img src="${dataUrl}" class="photo-preview"><p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Tap to change</p>`
-    : `<div style="font-size:36px;">📎</div><p style="font-size:14px;color:var(--primary);font-weight:600;margin-top:8px;">Image attached ✓</p><p style="font-size:12px;color:var(--text-muted);margin-top:4px;">${filename||'photo'} · Tap to change</p>`;
+  const ph = document.getElementById('photo-placeholder');
+  // Always try to show the image — iOS Safari can render HEIC natively
+  const imgId = 'photo-prev-' + Date.now();
+  ph.innerHTML = `<img id="${imgId}" src="${dataUrl}" class="photo-preview" style="max-width:100%;border-radius:8px;margin-top:12px;border:1px solid var(--border);"><p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Tap to change</p>`;
+  // If the image fails to render, show a text fallback
+  document.getElementById(imgId).onerror = function() {
+    ph.innerHTML = `<div style="font-size:36px;">📎</div><p style="font-size:14px;color:var(--primary);font-weight:600;margin-top:8px;">Image attached ✓</p><p style="font-size:12px;color:var(--text-muted);margin-top:4px;">${filename||'photo'} · Tap to change</p>`;
+  };
   window._photoData = dataUrl;
 }
 
@@ -1566,11 +1570,18 @@ function blobToJpegViaCanvas(blob) {
     const img = new Image();
     img.onload = () => {
       try {
-        const MAX=2000; let w=img.naturalWidth, h=img.naturalHeight;
+        const MAX=1600; let w=img.naturalWidth, h=img.naturalHeight;
         if(w>MAX||h>MAX){const r=Math.min(MAX/w,MAX/h);w=Math.round(w*r);h=Math.round(h*r);}
         const c=document.createElement('canvas'); c.width=w; c.height=h;
         c.getContext('2d').drawImage(img,0,0,w,h);
-        URL.revokeObjectURL(url); resolve(c.toDataURL('image/jpeg',0.82));
+        const result = c.toDataURL('image/jpeg',0.8);
+        URL.revokeObjectURL(url);
+        // Validate the result — canvas can silently fail on iOS with large images
+        if (!result || result === 'data:,' || result.length < 1000) {
+          reject(new Error('canvas produced empty result'));
+        } else {
+          resolve(result);
+        }
       } catch(e){URL.revokeObjectURL(url);reject(e);}
     };
     img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('load failed'));};
