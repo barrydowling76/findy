@@ -956,7 +956,7 @@ window.doLogin = async function() {
   const email = document.getElementById('login-email').value.trim();
   const pin   = document.getElementById('login-pin').value;
   const users = await DB.getUsers();
-  const user  = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === pin);
+  const user  = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.pin === pin);
   if (!user) {
     document.getElementById('auth-error').innerHTML = '<div class="alert alert-error">Incorrect email or PIN. Please try again.</div>';
     return;
@@ -1012,9 +1012,9 @@ window.doSignup = async function() {
   const users = await DB.getUsers();
   if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) { err.innerHTML = '<div class="alert alert-error">An account with this email already exists.</div>'; return; }
   const code = await uniqueCode();
-  const user = { id: uid(), name, email, wa_phone: phone, password: pin, code: code, created_at: new Date().toISOString(), email_verified: false };
-  await DB.insertUser(user);
-  DB.setCurrentUser(user);
+  const newUser = await DB.insertUser({ name, email, phone: phone || null, pin, code, email_verified: false });
+  if (!newUser) { err.innerHTML = '<div class="alert alert-error">Failed to create account. Please try again.</div>'; return; }
+  DB.setCurrentUser(newUser);
   navigate('/setup');
 };
 
@@ -1098,7 +1098,7 @@ window.doResetPin = async function() {
   const users   = await DB.getUsers();
   const user = users.find(u => u.email.toLowerCase() === resEmail);
   if (user) {
-    await DB.updateUser(user.id, { password: newPin });
+    await DB.updateUser(user.id, { pin: newPin });
   }
   sessionStorage.removeItem('findy_reset_code');
   sessionStorage.removeItem('findy_reset_email');
@@ -1998,7 +1998,7 @@ window.adminResetPin = async function(id, name) {
   const newPin = prompt(`Reset PIN for "${name}".\n\nEnter a new 4-digit PIN:`);
   if (newPin === null) return; // cancelled
   if (!/^\d{4}$/.test(newPin)) { alert('PIN must be exactly 4 digits.'); return; }
-  await DB.updateUser(id, { password: newPin });
+  await DB.updateUser(id, { pin: newPin });
   render();
   alert(`✅ PIN for "${name}" has been reset to ${newPin}.`);
 };
