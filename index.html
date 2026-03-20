@@ -476,7 +476,7 @@ async function render() {
       <button class="install-close" onclick="window._dismissed=true;render()">✕</button>
     </div>` : '';
 
-  const isMinimal = path === '/found' || path === '/demo';
+  const isMinimal = path === '/found';
   const nav  = isMinimal ? '' : await renderNav(user);
   const foot = isMinimal ? '' : `<div class="footer">🏷️ Findy &nbsp;·&nbsp; Tag Your Things</div>`;
 
