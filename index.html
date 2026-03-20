@@ -498,7 +498,7 @@ async function render() {
   else if (path === '/admin')       content = await renderAdmin();
   else if (path === '/demo')         content = await renderDemo();
   else if (path === '/found')       content = await renderFound(params);
-  else if (path === '/view-report') content = renderViewReport(params);
+  else if (path === '/view-report') content = await renderViewReport(params);
   else if (path === '/report')      content = user ? await renderReport(params.id, user) : renderLogin('Please sign in to view reports.');
   else content = `<div class="page text-center mt-24"><h2>Page not found</h2></div>`;
 
@@ -1268,12 +1268,14 @@ async function buildFoundUrl(user) {
 // Encode a report into a self-contained URL — works on any device, no login needed.
 function buildReportUrl(report, ownerName) {
   const r = {
+    id:   report.id || '',
     item: report.item_name || '',
     msg:  report.message  || '',
     fp:   report.finder_phone || '',
     fe:   report.finder_email || '',
     ts:   report.created_at,
-    own:  ownerName || ''
+    own:  ownerName || '',
+    hasPhoto: !!report.photo
   };
   const token = btoa(unescape(encodeURIComponent(JSON.stringify(r))))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
@@ -1697,10 +1699,17 @@ async function renderReport(reportId, user) {
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border);">
           <div style="background:var(--primary-light);border-radius:12px;padding:12px;font-size:26px;flex-shrink:0;">📩</div>
           <div>
-            <div style="font-size:18px;font-weight:700;">${report.item_name ? `Someone found your ${report.item_name}` : 'Someone found one of your items'}</div>
+            <div style="font-size:18px;font-weight:700;">${report.item_name ? `Your '${report.item_name}' has been found!` : 'Someone found one of your items!'}</div>
             <div class="text-muted" style="font-size:13px;margin-top:3px;">${time}</div>
           </div>
         </div>
+
+        <!-- Photo from finder -->
+        ${report.photo ? `
+        <div style="margin-bottom:20px;">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">📷 Photo from finder</div>
+          <img src="${report.photo}" style="width:100%;border-radius:10px;border:1px solid var(--border);">
+        </div>` : ''}
 
         <!-- Message -->
         <div style="margin-bottom:20px;">
@@ -1749,7 +1758,7 @@ async function renderReport(reportId, user) {
 // ================================================================
 // VIEW REPORT (cross-device — all data decoded from URL token)
 // ================================================================
-function renderViewReport(params) {
+async function renderViewReport(params) {
   let report = null;
   if (params.r) {
     try {
@@ -1758,6 +1767,15 @@ function renderViewReport(params) {
     } catch(e) {}
   }
   if (!report) return `<div class="page text-center mt-24"><h2>Report not found</h2><p class="text-muted mt-8">This link may have expired or been corrupted.</p></div>`;
+
+  // Try to load the photo from the database if report has an ID
+  let photoUrl = '';
+  if (report.id) {
+    try {
+      const { data } = await sbClient.from('reports').select('photo').eq('id', report.id).single();
+      if (data && data.photo) photoUrl = data.photo;
+    } catch(e) { console.warn('Could not load photo:', e); }
+  }
 
   const time       = new Date(report.ts).toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
   const hasContact = report.fe || report.fp;
@@ -1772,10 +1790,20 @@ function renderViewReport(params) {
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border);">
           <div style="background:var(--primary-light);border-radius:12px;padding:12px;font-size:26px;flex-shrink:0;">📩</div>
           <div>
-            <div style="font-size:18px;font-weight:700;">${report.item ? `Someone found your ${report.item}` : 'Someone found one of your items'}</div>
+            <div style="font-size:18px;font-weight:700;">${report.item ? `Your '${report.item}' has been found!` : 'Someone found one of your items!'}</div>
             <div class="text-muted" style="font-size:13px;margin-top:3px;">${time}</div>
           </div>
         </div>
+
+        <!-- Photo from finder -->
+        ${photoUrl ? `
+        <div style="margin-bottom:20px;">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">📷 Photo from finder</div>
+          <img src="${photoUrl}" style="width:100%;border-radius:10px;border:1px solid var(--border);">
+        </div>` : (report.hasPhoto ? `
+        <div style="margin-bottom:20px;">
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 16px;font-size:13px;color:#92400e;">📷 The finder attached a photo. Sign in to your dashboard to view it.</div>
+        </div>` : '')}
 
         <!-- Message -->
         <div style="margin-bottom:20px;">
@@ -2392,21 +2420,24 @@ async function sendNotifications(owner, report) {
         body: JSON.stringify({
           service_id: EJSS, template_id: EJST, user_id: EJSK,
           template_params: {
+            from_name: 'Findy',
             to_email: ownerEmail,
             to_name:  firstName,
-            subject:  `🎉 Someone found your ${itemName}!`,
+            subject:  `Your '${itemName}' has been found thanks to Findy`,
             message:
 `Hi ${firstName}!
 
-Great news — someone found your ${itemName} and left you a message through Findy.
+Great news — your ${itemName} has been found! Someone picked it up and left you a message through Findy.
 
 Their message:
 "${report.message}"
 
 ${contactText}
-
-Tap the link below to see the full report and contact them:
+${report.photo ? '\n📷 The finder attached a photo — tap the link below to see it.\n' : ''}
+View the full report and contact them here:
 ${reportUrl}
+
+Respond at your earliest convenience so you can get your ${itemName} back!
 
 — The Findy Team`,
           }
