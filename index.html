@@ -615,7 +615,7 @@ function renderHome(user) {
   const ctaLabel2 = user ? 'Go to my Dashboard →' : 'Create free account →';
 
   const protectItems = [
-    {i:'🎒',l:'Backpacks'},{i:'🔑',l:'Keys'},{i:'🚲',l:'Bikes'},{i:'💻',l:'Laptops'},
+    {i:'📱',l:'Backpacks'},{i:'🔑',l:'Keys'},{i:'🚲',l:'Bikes'},{i:'💻',l:'Laptops'},
     {i:'👝',l:'Wallets'},{i:'🧳',l:'Luggage'},{i:'📷',l:'Cameras'},{i:'☂️',l:'Umbrellas'},
     {i:'🎧',l:'Headphones'},{i:'⌚',l:'Watches'},{i:'📚',l:'Books'},{i:'🏋️',l:'Gym bags'},
   ];
@@ -642,7 +642,7 @@ function renderHome(user) {
         </div>
         <div class="hero-visual">
           <div class="hv-col">
-            <div class="hv-item">🎒</div><div class="hv-item">🔑</div>
+            <div class="hv-item">📱</div><div class="hv-item">🔑</div>
             <div class="hv-item">🚲</div><div class="hv-item">👝</div>
           </div>
           <div class="hv-sticker">
@@ -809,7 +809,7 @@ async function ensureDemoUser() {
   if (!demo) {
     demo = await DB.insertUser({ name: 'Demo User', email: 'demo@findy.app', pin: '0000', code: 'DEMO99', email_verified: true });
     if (demo) {
-      await DB.insertItem({ user_id: demo.id, name: 'Black backpack', emoji: '🎒' });
+      await DB.insertItem({ user_id: demo.id, name: 'Mobile phone', emoji: '📱' });
       await DB.insertItem({ user_id: demo.id, name: 'House keys', emoji: '🔑' });
       await DB.insertItem({ user_id: demo.id, name: 'Passport wallet', emoji: '📔' });
     }
@@ -840,15 +840,15 @@ async function renderDemo() {
     <div class="page" style="max-width:600px;">
       <div style="text-align:center;padding:24px 0 16px;">
         <h2 style="font-size:24px;font-weight:800;">Try the finder experience</h2>
-        <p class="text-muted" style="margin-top:8px;">Imagine you found someone's backpack on a park bench. You notice a small sticker on it...</p>
+        <p class="text-muted" style="margin-top:8px;">Imagine you found Someone's phone on a park bench. You notice a small sticker on it...</p>
       </div>
 
       <!-- Scene: item with QR sticker -->
       <div style="position:relative;background:linear-gradient(135deg,#f0fdf4,#e0f2fe);border-radius:20px;padding:40px 20px 32px;text-align:center;margin-bottom:24px;border:2px solid #d1fae5;">
 
         <!-- The "item" -->
-        <div style="font-size:100px;line-height:1;margin-bottom:8px;">🎒</div>
-        <p style="font-weight:700;font-size:18px;color:#1f2937;margin-bottom:20px;">Someone's backpack</p>
+        <div style="font-size:100px;line-height:1;margin-bottom:8px;">📱</div>
+        <p style="font-weight:700;font-size:18px;color:#1f2937;margin-bottom:20px;">Someone's phone</p>
 
         <!-- The sticker on the item -->
         <div onclick="location.hash='${foundUrl ? foundUrl.split('#')[1] : '/found?u=DEMO99'}'"
