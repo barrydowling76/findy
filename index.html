@@ -1661,8 +1661,9 @@ window.submitReport = async function() {
   }
   if (!ownerId) { errEl.innerHTML = '<div class="alert alert-error">Could not identify the owner. Please try scanning the QR code again.</div>'; return; }
 
-  const report = { user_id: ownerId, item_name: itemName, message, finder_phone: phone || null, finder_email: email || null, photo: window._photoData || null, read: false };
-  await DB.insertReport(report);
+  const reportData = { user_id: ownerId, item_name: itemName, message, finder_phone: phone || null, finder_email: email || null, photo: window._photoData || null, read: false };
+  const savedReport = await DB.insertReport(reportData);
+  const report = savedReport || { ...reportData, created_at: new Date().toISOString() };
   window._photoData = null;
 
   // Send notifications — works cross-device because we use profile data from the URL
