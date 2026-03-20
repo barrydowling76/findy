@@ -832,7 +832,7 @@ async function renderDemo() {
   setTimeout(() => {
     const container = document.getElementById('demo-qr');
     if (container && foundUrl && container.childElementCount === 0) {
-      new QRCode(container, { text: foundUrl, width: 120, height: 120, colorDark: '#059669', colorLight: '#ffffff' });
+      new QRCode(container, { text: foundUrl, width: 120, height: 120, colorDark: '#059669', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L });
     }
   }, 100);
 
@@ -1286,7 +1286,7 @@ async function generateDashQR(user) {
   const container = document.getElementById('dash-qr');
   if (!container || container.childElementCount > 0) return;
   const url = await buildFoundUrl(user);
-  new QRCode(container, { text: url, width: 180, height: 180, colorDark: '#059669', colorLight: '#ffffff' });
+  new QRCode(container, { text: url, width: 180, height: 180, colorDark: '#059669', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L });
 }
 
 window.switchTab = async function(tab) {
