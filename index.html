@@ -282,7 +282,7 @@
 // EMAILJS CONFIG (embedded — no user setup needed)
 // ================================================================
 const EJSK = 'VyFmeqZKX6ICUOlZU';
-const EJSS = 'service_h35rcwm';
+const EJSS = 'service_9g2dvsf';
 const EJST = 'template_4qglzud';
 // ================================================================
 // SUPABASE CONFIG
@@ -807,7 +807,7 @@ async function ensureDemoUser() {
   const users = await DB.getUsers();
   let demo = users.find(u => u.code === 'DEMO99');
   if (!demo) {
-    demo = await DB.insertUser({ name: 'Demo User', email: 'demo@findy.app', pin: '0000', code: 'DEMO99', email_verified: true });
+    demo = await DB.insertUser({ name: 'Demo User', email: 'demo@findy.life', pin: '0000', code: 'DEMO99', email_verified: true });
     if (demo) {
       await DB.insertItem({ user_id: demo.id, name: 'Mobile phone', emoji: '📱' });
       await DB.insertItem({ user_id: demo.id, name: 'House keys', emoji: '🔑' });
@@ -1421,7 +1421,7 @@ window.doStickerPrint = function(cols, rows) {
   .sticker { width:${wMm}mm; height:${hMm}mm; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:${padMm}mm; border:1.5px dashed #9ca3af; overflow:hidden; }
   .cut-hint { font-size: 7pt; color: #9ca3af; text-align: center; margin-top: 3mm; }
 </style></head><body>
-<p class="sheet-title">✂️ Print on A4 · Cut along dashed lines · <strong>${count} stickers · ${sizeName} · each sticker ${wMm} × ${hMm} mm</strong> · findy.app</p>
+<p class="sheet-title">✂️ Print on A4 · Cut along dashed lines · <strong>${count} stickers · ${sizeName} · each sticker ${wMm} × ${hMm} mm</strong> · findy.life</p>
 <div class="grid">${Array(count).fill(stickerHTML).join('')}</div>
 <p class="cut-hint">✂️ Cut along dashed lines</p>
 <script>window.onload=function(){window.print();};<\/script>
@@ -1849,7 +1849,7 @@ async function renderViewReport(params) {
 // ================================================================
 // ADMIN
 // ================================================================
-const ADMIN_EMAIL = 'admin@findy.app';
+const ADMIN_EMAIL = 'admin@findy.life';
 const ADMIN_PASS  = 'Findy2024!';
 
 async function renderAdmin() {
@@ -1870,7 +1870,7 @@ function renderAdminLogin() {
         <div id="admin-error"></div>
         <div class="form-group">
           <label>Admin email</label>
-          <input type="text" id="adm-email" placeholder="admin@findy.app" autocomplete="off">
+          <input type="text" id="adm-email" placeholder="admin@findy.life" autocomplete="off">
         </div>
         <div class="form-group">
           <label>Password</label>
