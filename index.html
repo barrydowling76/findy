@@ -1557,19 +1557,40 @@ async function renderFound(params) {
   // Store for submitReport to access
   window._foundOwner = profile;
 
-  // Silently capture GPS location
+  // Silently capture GPS location + reverse geocode to address
   window._finderLocation = null;
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        window._finderLocation = {
+      async (pos) => {
+        const loc = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: Math.round(pos.coords.accuracy),
+          address: null,
         };
-        // Show location indicator if element exists
+        // Reverse geocode to get readable address (free, no API key needed)
+        try {
+          const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.lat}&lon=${loc.lng}&zoom=16&addressdetails=1`, {
+            headers: { 'Accept-Language': 'en' }
+          });
+          const geoData = await geoRes.json();
+          if (geoData && geoData.display_name) {
+            // Build a concise address from parts
+            const a = geoData.address || {};
+            const parts = [a.road, a.suburb || a.village || a.town, a.city || a.county, a.country].filter(Boolean);
+            loc.address = parts.join(', ') || geoData.display_name;
+          }
+        } catch(e) { /* geocoding failed — coordinates still available */ }
+        window._finderLocation = loc;
+        // Show location indicator
         const locEl = document.getElementById('location-indicator');
-        if (locEl) { locEl.style.display = 'flex'; }
+        if (locEl) {
+          locEl.style.display = 'flex';
+          const locText = locEl.querySelector('span');
+          if (locText && loc.address) {
+            locText.textContent = `Location captured — ${loc.address}`;
+          }
+        }
       },
       () => { /* denied or unavailable — silently continue */ },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
@@ -1844,9 +1865,10 @@ async function renderReport(reportId, user) {
         ${report.location ? `
         <div style="margin-bottom:20px;">
           <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">📍 Found here</div>
+          ${report.location.address ? `<p style="font-size:14px;color:var(--text);margin:0 0 8px 0;">${report.location.address}</p>` : ''}
           <a href="https://www.google.com/maps?q=${report.location.lat},${report.location.lng}" target="_blank" rel="noopener"
             style="display:block;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;text-decoration:none;color:#059669;font-size:14px;font-weight:600;">
-            📍 View location on Google Maps →
+            📍 View on Google Maps →
           </a>
         </div>` : ''}
 
@@ -1941,9 +1963,10 @@ async function renderViewReport(params) {
         ${report.loc ? `
         <div style="margin-bottom:20px;">
           <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">📍 Found here</div>
+          ${report.loc.address ? `<p style="font-size:14px;color:var(--text);margin:0 0 8px 0;">${report.loc.address}</p>` : ''}
           <a href="https://www.google.com/maps?q=${report.loc.lat},${report.loc.lng}" target="_blank" rel="noopener"
             style="display:block;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;text-decoration:none;color:#059669;font-size:14px;font-weight:600;">
-            📍 View location on Google Maps →
+            📍 View on Google Maps →
           </a>
         </div>` : ''}
 
@@ -2546,7 +2569,7 @@ async function sendNotifications(owner, report) {
     : `The finder didn't leave any contact details.`;
 
   const locationText = report.location
-    ? `\n📍 Location where it was found:\nhttps://www.google.com/maps?q=${report.location.lat},${report.location.lng}\n`
+    ? `\n📍 Location where it was found:${report.location.address ? '\n' + report.location.address : ''}\nhttps://www.google.com/maps?q=${report.location.lat},${report.location.lng}\n`
     : '';
 
   // ── Email via EmailJS ──
