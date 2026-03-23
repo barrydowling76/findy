@@ -1492,7 +1492,7 @@ async function renderFound(params) {
       <div class="found-hero">
         <div class="icon">🎉</div>
         <h1>You found something!</h1>
-        <p>This item belongs to <strong>${firstName}</strong>. Leave them a message — it's completely anonymous.</p>
+        <p>This item belongs to <strong>${firstName}</strong>. Leave them a message to let them know.</p>
       </div>
 
       <div id="found-success" style="display:none;">
@@ -1500,7 +1500,7 @@ async function renderFound(params) {
           <div style="font-size:56px;margin-bottom:12px;">✅</div>
           <h2>Message sent to ${firstName}!</h2>
           <p class="text-muted mt-8">They've been notified. You're a legend — thank you! 🙏</p>
-          ${`<p class="text-muted mt-16" style="font-size:13px;">If you left your number, they'll be in touch soon.</p>`}
+          ${`<p class="text-muted mt-16" style="font-size:13px;">If you shared your contact details, they'll be in touch soon.</p>`}
         </div>
         <div class="card text-center" style="background:var(--primary-light);">
           <p style="font-size:14px;font-weight:600;">Want to protect your own things?</p>
@@ -1516,8 +1516,8 @@ async function renderFound(params) {
             <label>Your message to ${firstName} ✍️</label>
             <textarea id="found-message" placeholder="Where did you find it? Is it safe? Any other details?"></textarea>
           </div>
-          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#92400e;">
-            💡 Please provide a way for ${firstName} to contact you — your phone number and/or email address.
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#059669;line-height:1.5;">
+            🛡️ You can provide an email address or phone number so <strong>${firstName}</strong> can also contact you directly. Or leave them blank and <strong>${firstName}</strong> will simply receive your message as an alert and can reply to you anonymously through Findy.
           </div>
           <div class="form-group">
             <label>Your email <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
@@ -1543,7 +1543,7 @@ async function renderFound(params) {
             📩 Send message to ${firstName}
           </button>
           <p class="text-center mt-16" style="font-size:12px;color:var(--text-muted);">
-            Your message is anonymous unless you add your number. Powered by <strong>Findy</strong>.
+            Your message is anonymous unless you provide your contact details. Powered by <strong>Findy</strong>.
           </p>
         </div>
       </div>
