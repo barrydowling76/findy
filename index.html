@@ -1381,9 +1381,35 @@ function buildReportUrl(report, ownerName) {
     hasPhoto: !!report.photo,
     loc:  report.location || null
   };
+  // Include a small thumbnail if available (compressed to ~10-20KB)
+  if (report._thumbnail) {
+    r.thumb = report._thumbnail;
+  }
   const token = btoa(unescape(encodeURIComponent(JSON.stringify(r))))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   return `${location.origin}${location.pathname}#/view-report?r=${token}`;
+}
+
+// Generate a tiny thumbnail (200px max, low quality) for embedding in URLs/emails
+function makeThumbnail(dataUrl, maxSize, quality) {
+  maxSize = maxSize || 200;
+  quality = quality || 0.35;
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (w > maxSize || h > maxSize) {
+        const ratio = Math.min(maxSize / w, maxSize / h);
+        w = Math.round(w * ratio); h = Math.round(h * ratio);
+      }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve('');
+    img.src = dataUrl;
+  });
 }
 
 async function generateDashQR(user) {
@@ -1935,9 +1961,16 @@ window.submitReport = async function() {
   if (!ownerId) { errEl.innerHTML = '<div class="alert alert-error">Could not identify the owner. Please try scanning the QR code again.</div>'; return; }
 
   const loc = window._finderLocation || null;
-  const reportData = { user_id: ownerId, item_name: itemName, message, finder_phone: phone || null, finder_email: email || null, photo: window._photoData || null, read: false, location: loc };
+  const photoData = window._photoData || null;
+  // Generate a tiny thumbnail for embedding in emails/links (before clearing _photoData)
+  let thumbData = null;
+  if (photoData) {
+    try { thumbData = await makeThumbnail(photoData, 200, 0.35); } catch(e) {}
+  }
+  const reportData = { user_id: ownerId, item_name: itemName, message, finder_phone: phone || null, finder_email: email || null, photo: photoData, read: false, location: loc };
   const savedReport = await DB.insertReport(reportData);
   const report = savedReport || { ...reportData, created_at: new Date().toISOString() };
+  report._thumbnail = thumbData; // attach thumbnail for notifications
   window._photoData = null;
 
   // Send notifications — works cross-device because we use profile data from the URL
@@ -2051,9 +2084,9 @@ async function renderViewReport(params) {
   }
   if (!report) return `<div class="page text-center mt-24"><h2>Report not found</h2><p class="text-muted mt-8">This link may have expired or been corrupted.</p></div>`;
 
-  // Try to load the photo from the database if report has an ID
-  let photoUrl = '';
-  if (report.id) {
+  // Try to load the photo: first from embedded thumbnail, then from database
+  let photoUrl = report.thumb || '';
+  if (!photoUrl && report.id) {
     try {
       const { data } = await sbClient.from('reports').select('photo').eq('id', report.id).single();
       if (data && data.photo) photoUrl = data.photo;
@@ -2709,9 +2742,49 @@ async function sendNotifications(owner, report) {
     ? `\n📍 Location where it was found:${report.location.address ? '\n' + report.location.address : ''}\nhttps://www.google.com/maps?q=${report.location.lat},${report.location.lng}\n`
     : '';
 
-  // ── Email via EmailJS ──
+  // ── Email via EmailJS (HTML format with inline photo) ──
   if (emailEnabled && ownerEmail) {
     try {
+      const thumb = report._thumbnail || '';
+      const photoHtml = thumb ? `
+        <div style="margin:16px 0;">
+          <p style="font-size:12px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">📷 Photo from finder</p>
+          <img src="${thumb}" style="max-width:100%;width:300px;border-radius:10px;border:1px solid #e5e7eb;margin-top:8px;" alt="Photo of found item">
+        </div>` : '';
+      const locationHtml = report.location ? `
+        <div style="margin:12px 0;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">
+          <p style="margin:0;font-size:14px;">📍 <strong>Found at:</strong> ${report.location.address || 'See map'}</p>
+          <a href="https://www.google.com/maps?q=${report.location.lat},${report.location.lng}" style="color:#059669;font-size:13px;font-weight:600;">View on Google Maps →</a>
+        </div>` : '';
+      const contactHtml = contactLines.length ? `
+        <div style="margin:12px 0;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">
+          <p style="margin:0;font-size:14px;font-weight:600;color:#166534;">📬 Finder's contact details:</p>
+          ${report.finder_email ? `<p style="margin:4px 0 0;font-size:14px;">📧 <a href="mailto:${report.finder_email}" style="color:#059669;">${report.finder_email}</a></p>` : ''}
+          ${report.finder_phone ? `<p style="margin:4px 0 0;font-size:14px;">📞 <a href="tel:${report.finder_phone}" style="color:#059669;">${report.finder_phone}</a></p>` : ''}
+        </div>` : `<p style="font-size:13px;color:#6b7280;font-style:italic;">The finder chose to stay anonymous. Use the link below to view the full report.</p>`;
+
+      const htmlMessage = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;color:#1f2937;">
+  <div style="text-align:center;padding:24px 0 16px;">
+    <div style="font-size:48px;">🎉</div>
+    <h1 style="font-size:22px;font-weight:800;margin:8px 0 0;">Great news, ${firstName}!</h1>
+    <p style="font-size:16px;color:#6b7280;margin:8px 0 0;">Your <strong>${itemName}</strong> has been found</p>
+  </div>
+  <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:16px 0;">
+    <p style="font-size:12px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 8px;">💬 Message from finder</p>
+    <div style="background:white;border-radius:10px;padding:16px;border:1px solid #e5e7eb;">
+      <p style="font-size:15px;line-height:1.6;margin:0;">"${report.message}"</p>
+    </div>
+  </div>
+  ${photoHtml}
+  ${locationHtml}
+  ${contactHtml}
+  <div style="text-align:center;margin:24px 0;">
+    <a href="${reportUrl}" style="display:inline-block;background:#059669;color:white;text-decoration:none;padding:14px 32px;border-radius:10px;font-weight:700;font-size:15px;">View full report →</a>
+  </div>
+  <p style="font-size:12px;color:#9ca3af;text-align:center;margin-top:24px;">Powered by <a href="https://www.findy.life" style="color:#059669;text-decoration:none;font-weight:600;">Findy</a> — Tag Your Things</p>
+</div>`;
+
       await fetch('https://api.emailjs.com/api/v1.0/email/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2721,23 +2794,8 @@ async function sendNotifications(owner, report) {
             from_name: 'Findy',
             to_email: ownerEmail,
             to_name:  firstName,
-            subject:  `Your '${itemName}' has been found thanks to Findy`,
-            message:
-`Hi ${firstName}!
-
-Great news — your ${itemName} has been found! Someone picked it up and left you a message through Findy.
-
-Their message:
-"${report.message}"
-
-${contactText}
-${locationText}${report.photo ? '\n📷 The finder attached a photo — tap the link below to see it.\n' : ''}
-View the full report and contact them here:
-${reportUrl}
-
-Respond at your earliest convenience so you can get your ${itemName} back!
-
-— The Findy Team`,
+            subject:  `🎉 Your '${itemName}' has been found!`,
+            message:  htmlMessage,
           }
         })
       });
