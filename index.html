@@ -2006,17 +2006,21 @@ window.submitReport = async function() {
   if (photoData) {
     try { storedPhoto = await makeThumbnail(photoData, 800, 0.6); } catch(e) { storedPhoto = photoData; }
   }
-  const reportData = { user_id: ownerId, item_name: itemName, message, finder_phone: phone || null, finder_email: email || null, photo: storedPhoto, read: false, location: loc };
-  let savedReport = await DB.insertReport(reportData);
+  // DB insert — only include columns that exist in the Supabase table
+  // (location is NOT a DB column — it's only used in notifications & URL tokens)
+  const dbData = { user_id: ownerId, item_name: itemName, message, finder_phone: phone || null, finder_email: email || null, photo: storedPhoto, read: false };
+  let savedReport = await DB.insertReport(dbData);
   // If insert failed (likely photo too large), retry without photo
   if (!savedReport && storedPhoto) {
     console.warn('Report insert failed with photo — retrying without photo…');
-    reportData.photo = null;
-    savedReport = await DB.insertReport(reportData);
+    dbData.photo = null;
+    savedReport = await DB.insertReport(dbData);
   }
   if (!savedReport) { console.error('Report insert failed completely'); }
-  const report = savedReport || { ...reportData, created_at: new Date().toISOString() };
-  report._thumbnail = thumbData; // attach thumbnail for notifications
+  const report = savedReport || { ...dbData, created_at: new Date().toISOString() };
+  // Attach non-DB fields for use in notifications & URL tokens
+  report.location = loc;
+  report._thumbnail = thumbData;
   window._photoData = null;
 
   // Send notifications — works cross-device because we use profile data from the URL
