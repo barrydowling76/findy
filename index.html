@@ -998,7 +998,7 @@ function renderLogin(msg) {
           <div class="form-group">
             <label>Email</label>
             <input type="text" inputmode="email" id="login-email" placeholder="you@example.com"
-              autocomplete="off" spellcheck="false">
+              autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'){document.getElementById('login-pin').focus();}">
           </div>
           <div class="form-group">
             <label>4-digit PIN</label>
