@@ -272,8 +272,8 @@
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
 (function(){
-  var urls=['https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js','https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js'];
-  var i=0; function tryNext(){ if(i>=urls.length)return; var s=document.createElement('script'); s.src=urls[i++]; s.onerror=tryNext; document.head.appendChild(s); } tryNext();
+  var urls=['https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js','https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js'];
+  var i=0; function tryNext(){ if(i>=urls.length){console.warn('heic2any failed to load from all CDNs');return;} var s=document.createElement('script'); s.src=urls[i++]; s.onload=function(){console.log('heic2any loaded from',s.src);}; s.onerror=tryNext; document.head.appendChild(s); } tryNext();
 })();
 </script>
 <script>
@@ -1666,7 +1666,7 @@ async function renderFound(params) {
           <div class="form-group">
             <label>Photo of the item <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
             <div class="photo-upload" onclick="document.getElementById('photo-input').click()">
-              <input type="file" id="photo-input" accept="image/*,image/heic,image/heif,.heic,.heif" onchange="previewPhoto(this)">
+              <input type="file" id="photo-input" accept="image/*,.heic,.heif,.HEIC,.HEIF" onchange="previewPhoto(this)">
               <div id="photo-placeholder">
                 <div style="font-size:36px;">📷</div>
                 <p style="font-size:14px;color:var(--text-muted);margin-top:8px;">Tap to take or choose a photo</p>
@@ -1737,6 +1737,20 @@ window.previewPhoto = async function(input) {
   const ph = document.getElementById('photo-placeholder');
   ph.innerHTML = `<div style="font-size:28px;">⏳</div><p style="font-size:14px;color:var(--text-muted);margin-top:8px;">Processing photo…</p>`;
 
+  const isHeic = /\.(heic|heif)$/i.test(file.name) || file.type === 'image/heic' || file.type === 'image/heif';
+
+  // For HEIC files on non-iOS browsers, try heic2any FIRST (canvas won't work)
+  if (isHeic && typeof heic2any !== 'undefined') {
+    try {
+      ph.innerHTML = `<div style="font-size:28px;">⏳</div><p style="font-size:14px;color:var(--text-muted);margin-top:8px;">Converting HEIC photo…</p>`;
+      const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.8 });
+      const converted = Array.isArray(result) ? result[0] : result;
+      const jpeg = await fileToJpeg(converted, 1200);
+      showPhotoPreview(jpeg);
+      return;
+    } catch(e) { console.warn('heic2any first attempt failed:', e.message); }
+  }
+
   // Attempt 1: Direct canvas conversion (works for JPEG/PNG/WebP + HEIC on iOS Safari)
   try {
     const jpeg = await fileToJpeg(file, 1200);
@@ -1751,20 +1765,41 @@ window.previewPhoto = async function(input) {
     return;
   } catch(e) { console.warn('Small canvas attempt failed:', e.message); }
 
-  // Attempt 3: heic2any library (converts HEIC on desktop browsers that can't decode it natively)
-  try {
-    if (typeof heic2any !== 'undefined') {
+  // Attempt 3: heic2any as last resort (in case it wasn't tried above)
+  if (typeof heic2any !== 'undefined') {
+    try {
       ph.innerHTML = `<div style="font-size:28px;">⏳</div><p style="font-size:14px;color:var(--text-muted);margin-top:8px;">Converting image…</p>`;
       const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.8 });
       const converted = Array.isArray(result) ? result[0] : result;
       const jpeg = await fileToJpeg(converted, 1200);
       showPhotoPreview(jpeg);
       return;
-    }
-  } catch(e) { console.warn('heic2any attempt failed:', e.message); }
+    } catch(e) { console.warn('heic2any fallback attempt failed:', e.message); }
+  }
+
+  // Attempt 4: If heic2any didn't load, try loading it now and retry
+  if (isHeic && typeof heic2any === 'undefined') {
+    try {
+      ph.innerHTML = `<div style="font-size:28px;">⏳</div><p style="font-size:14px;color:var(--text-muted);margin-top:8px;">Loading converter…</p>`;
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+      if (typeof heic2any !== 'undefined') {
+        const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.8 });
+        const converted = Array.isArray(result) ? result[0] : result;
+        const jpeg = await fileToJpeg(converted, 1200);
+        showPhotoPreview(jpeg);
+        return;
+      }
+    } catch(e) { console.warn('On-demand heic2any failed:', e.message); }
+  }
 
   // All conversion failed
-  ph.innerHTML = `<div style="font-size:28px;">⚠️</div><p style="font-size:14px;color:#b91c1c;margin-top:8px;">Could not process this photo. Please try taking the photo again or choose a different image.</p>`;
+  ph.innerHTML = `<div style="font-size:28px;">⚠️</div><p style="font-size:14px;color:#b91c1c;margin-top:8px;">Could not process this photo. Try taking a screenshot of the photo and uploading that instead, or use a JPEG/PNG image.</p>`;
   window._photoData = null;
 };
 
