@@ -808,7 +808,7 @@ async function ensureDemoUser() {
   const users = await DB.getUsers();
   let demo = users.find(u => u.code === 'DEMO99');
   if (!demo) {
-    demo = await DB.insertUser({ name: 'Demo User', email: 'demo@findy.life', pin: '0000', code: 'DEMO99', email_verified: true });
+    demo = await DB.insertUser({ name: 'Demo User', email: 'barrydowling76@gmail.com', pin: '0000', code: 'DEMO99', email_verified: true });
     if (demo) {
       await DB.insertItem({ user_id: demo.id, name: 'Mobile phone', emoji: '📱' });
       await DB.insertItem({ user_id: demo.id, name: 'House keys', emoji: '🔑' });
@@ -833,45 +833,147 @@ async function renderDemo() {
   setTimeout(() => {
     const container = document.getElementById('demo-qr');
     if (container && foundUrl && container.childElementCount === 0) {
-      new QRCode(container, { text: foundUrl, width: 120, height: 120, colorDark: '#059669', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L });
+      new QRCode(container, { text: foundUrl, width: 100, height: 100, colorDark: '#059669', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L });
     }
   }, 100);
 
   return `
-    <div class="page" style="max-width:600px;">
-      <div style="text-align:center;padding:24px 0 16px;">
-        <h2 style="font-size:24px;font-weight:800;">Try the finder experience</h2>
-        <p class="text-muted" style="margin-top:8px;">Imagine you found Someone's phone on a park bench. You notice a small sticker on it...</p>
+    <div class="page" style="max-width:620px;">
+      <div style="text-align:center;padding:24px 0 8px;">
+        <h2 style="font-size:26px;font-weight:800;color:#1f2937;">How Findy Works</h2>
+        <p class="text-muted" style="margin-top:8px;font-size:15px;max-width:400px;margin-left:auto;margin-right:auto;">John tagged his phone with a Findy sticker. Here's what happens when someone finds it.</p>
       </div>
 
-      <!-- Scene: item with QR sticker -->
-      <div style="position:relative;background:linear-gradient(135deg,#f0fdf4,#e0f2fe);border-radius:20px;padding:40px 20px 32px;text-align:center;margin-bottom:24px;border:2px solid #d1fae5;">
-
-        <!-- The "item" -->
-        <div style="font-size:100px;line-height:1;margin-bottom:8px;">📱</div>
-        <p style="font-weight:700;font-size:18px;color:#1f2937;margin-bottom:20px;">Someone's phone</p>
-
-        <!-- The sticker on the item -->
-        <div onclick="location.hash='${foundUrl ? foundUrl.split('#')[1] : '/found?u=DEMO99'}'"
-             style="cursor:pointer;display:inline-block;background:white;border-radius:16px;padding:16px 20px;box-shadow:0 4px 20px rgba(0,0,0,0.12);border:2px solid #d1fae5;transition:transform 0.2s,box-shadow 0.2s;"
-             onmouseenter="this.style.transform='scale(1.05)';this.style.boxShadow='0 6px 24px rgba(5,150,105,0.25)'"
-             onmouseleave="this.style.transform='scale(1)';this.style.boxShadow='0 4px 20px rgba(0,0,0,0.12)'"
-        >
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-            <span style="font-size:18px;">🏷️</span>
-            <span style="font-weight:800;font-size:14px;color:#059669;letter-spacing:0.5px;">FINDY</span>
-          </div>
-          <div id="demo-qr" style="display:flex;justify-content:center;margin:8px 0;"></div>
-          <p style="font-size:11px;color:#6b7280;margin-top:8px;font-weight:600;">Hey, I lost this!<br>Scan to contact me</p>
+      <!-- ======== STEP 1 ======== -->
+      <div style="margin:28px 0 8px;display:flex;align-items:center;gap:12px;">
+        <div style="width:36px;height:36px;border-radius:50%;background:#059669;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">1</div>
+        <div>
+          <div style="font-weight:700;font-size:17px;color:#1f2937;">Someone finds John's phone</div>
+          <div style="font-size:13px;color:#6b7280;margin-top:2px;">They notice a small Findy sticker and scan the QR code</div>
         </div>
-
-        <p style="font-size:13px;color:#059669;font-weight:600;margin-top:20px;">👆 Tap the sticker to try it</p>
+      </div>
+      <div style="background:linear-gradient(135deg,#f0fdf4,#e0f2fe);border-radius:20px;padding:32px 20px 28px;text-align:center;border:2px solid #d1fae5;">
+        <div style="font-size:80px;line-height:1;margin-bottom:8px;">📱</div>
+        <p style="font-weight:600;font-size:16px;color:#1f2937;margin-bottom:16px;">John's phone on a park bench</p>
+        <div onclick="location.hash='${foundUrl ? foundUrl.split('#')[1] : '/found?u=DEMO99'}'"
+             style="cursor:pointer;display:inline-block;background:white;border-radius:14px;padding:14px 18px;box-shadow:0 4px 20px rgba(0,0,0,0.1);border:2px solid #d1fae5;transition:transform 0.2s;"
+             onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="font-size:16px;">🏷️</span>
+            <span style="font-weight:800;font-size:13px;color:#059669;letter-spacing:0.5px;">FINDY</span>
+          </div>
+          <div id="demo-qr" style="display:flex;justify-content:center;margin:4px 0;"></div>
+          <p style="font-size:10px;color:#6b7280;margin-top:6px;font-weight:600;">Hey, I lost this! Scan to help</p>
+        </div>
+        <p style="font-size:13px;color:#059669;font-weight:600;margin-top:16px;">👆 Tap the sticker to try it yourself</p>
       </div>
 
-      <div class="card" style="text-align:center;">
-        <h3 style="font-size:16px;margin-bottom:8px;">That's it — that's Findy!</h3>
-        <p class="text-muted" style="font-size:14px;line-height:1.6;">When someone scans your sticker, they see a simple form to leave you a message. You get notified instantly by email and WhatsApp.</p>
-        <button class="btn btn-primary btn-full mt-16" onclick="navigate('/signup')">✨ Get my own QR code — free →</button>
+      <!-- ======== STEP 2 ======== -->
+      <div style="margin:32px 0 8px;display:flex;align-items:center;gap:12px;">
+        <div style="width:36px;height:36px;border-radius:50%;background:#059669;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">2</div>
+        <div>
+          <div style="font-weight:700;font-size:17px;color:#1f2937;">John's Findy page opens</div>
+          <div style="font-size:13px;color:#6b7280;margin-top:2px;">The finder sees a simple form to alert John</div>
+        </div>
+      </div>
+      <!-- Phone mockup of the found form -->
+      <div style="max-width:300px;margin:0 auto;border-radius:32px;border:3px solid #e5e7eb;background:#fff;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.12);">
+        <!-- Phone status bar -->
+        <div style="background:#f9fafb;padding:8px 20px;display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:600;color:#6b7280;">
+          <span>9:41</span>
+          <div style="width:60px;height:6px;background:#e5e7eb;border-radius:3px;"></div>
+          <span>📶 🔋</span>
+        </div>
+        <!-- Page content -->
+        <div style="padding:20px 16px 24px;">
+          <div style="text-align:center;margin-bottom:16px;">
+            <div style="font-size:36px;">🎉</div>
+            <div style="font-weight:800;font-size:16px;margin-top:4px;">You found something!</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:4px;">This item belongs to <strong>John</strong></div>
+          </div>
+          <div style="font-size:11px;color:#374151;margin-bottom:6px;font-weight:600;">What did you find?</div>
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;font-size:12px;color:#6b7280;margin-bottom:10px;">Mobile phone</div>
+          <div style="font-size:11px;color:#374151;margin-bottom:6px;font-weight:600;">Your message to John ✍️</div>
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;font-size:11px;color:#374151;margin-bottom:10px;line-height:1.5;">Hi John, I found your phone on a bench in St Stephen's Green. It's safe with me!</div>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 10px;font-size:10px;color:#059669;line-height:1.4;margin-bottom:10px;">
+            🛡️ Contact details are optional. Leave them blank to stay anonymous.
+          </div>
+          <div style="font-size:11px;color:#374151;margin-bottom:4px;font-weight:600;">Your email <span style="color:#9ca3af;font-weight:400;">(optional)</span></div>
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;font-size:12px;color:#6b7280;margin-bottom:10px;">finder@email.com</div>
+          <div style="font-size:11px;color:#374151;margin-bottom:4px;font-weight:600;">Photo <span style="color:#9ca3af;font-weight:400;">(optional)</span></div>
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px;text-align:center;font-size:24px;margin-bottom:12px;">📷</div>
+          <div style="background:#059669;color:white;text-align:center;padding:10px;border-radius:10px;font-weight:700;font-size:13px;">📩 Send message to John</div>
+          <div style="text-align:center;margin-top:8px;">
+            <div style="font-size:10px;color:#9ca3af;">📍 Location captured — St Stephen's Green, Dublin, Ireland</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======== STEP 3 ======== -->
+      <div style="margin:32px 0 8px;display:flex;align-items:center;gap:12px;">
+        <div style="width:36px;height:36px;border-radius:50%;background:#059669;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">3</div>
+        <div>
+          <div style="font-weight:700;font-size:17px;color:#1f2937;">John gets notified instantly</div>
+          <div style="font-size:13px;color:#6b7280;margin-top:2px;">He receives both an email and a WhatsApp message</div>
+        </div>
+      </div>
+      <!-- Notification mockups side by side -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <!-- Email mockup -->
+        <div style="border-radius:16px;border:2px solid #e5e7eb;background:#fff;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.08);">
+          <div style="background:#f3f4f6;padding:10px 12px;border-bottom:1px solid #e5e7eb;">
+            <div style="font-size:10px;font-weight:700;color:#374151;">📧 Email</div>
+          </div>
+          <div style="padding:12px;">
+            <div style="font-size:10px;color:#9ca3af;margin-bottom:4px;">From: support@findy.life</div>
+            <div style="font-size:11px;font-weight:700;color:#1f2937;margin-bottom:8px;">🎉 Someone found your Mobile phone!</div>
+            <div style="font-size:10px;color:#374151;line-height:1.5;">
+              <p>Hi John,</p>
+              <p style="margin-top:4px;">"I found your phone on a bench in St Stephen's Green. It's safe with me!"</p>
+              <p style="margin-top:6px;">📍 <strong>St Stephen's Green, Dublin, Ireland</strong></p>
+              <p style="margin-top:4px;color:#059669;">📧 finder@email.com</p>
+            </div>
+          </div>
+        </div>
+        <!-- WhatsApp mockup -->
+        <div style="border-radius:16px;border:2px solid #e5e7eb;background:#fff;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.08);">
+          <div style="background:#075e54;padding:10px 12px;">
+            <div style="font-size:10px;font-weight:700;color:white;">💬 WhatsApp</div>
+          </div>
+          <div style="background:#ece5dd;padding:12px;">
+            <div style="background:white;border-radius:0 12px 12px 12px;padding:10px 12px;box-shadow:0 1px 2px rgba(0,0,0,0.08);">
+              <div style="font-size:10px;color:#075e54;font-weight:700;margin-bottom:4px;">Findy Alert 🏷️</div>
+              <div style="font-size:10px;color:#374151;line-height:1.5;">
+                <p>🎉 Great news! Someone found your <strong>Mobile phone</strong></p>
+                <p style="margin-top:4px;">💬 "Found your phone on a bench in St Stephen's Green"</p>
+                <p style="margin-top:4px;">📍 St Stephen's Green, Dublin</p>
+                <p style="margin-top:4px;color:#059669;">📧 finder@email.com</p>
+              </div>
+              <div style="text-align:right;font-size:9px;color:#9ca3af;margin-top:4px;">9:42 AM ✓✓</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======== STEP 4 ======== -->
+      <div style="margin:32px 0 8px;display:flex;align-items:center;gap:12px;">
+        <div style="width:36px;height:36px;border-radius:50%;background:#059669;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">4</div>
+        <div>
+          <div style="font-weight:700;font-size:17px;color:#1f2937;">John gets his phone back! 🎉</div>
+          <div style="font-size:13px;color:#6b7280;margin-top:2px;">He contacts the finder and they arrange a pickup</div>
+        </div>
+      </div>
+      <div style="text-align:center;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border-radius:20px;padding:28px 20px;border:2px solid #d1fae5;">
+        <div style="font-size:60px;margin-bottom:8px;">🤝</div>
+        <p style="font-weight:700;font-size:18px;color:#059669;">Reunited!</p>
+        <p style="font-size:13px;color:#6b7280;margin-top:6px;line-height:1.5;">Thanks to the Findy sticker, John's phone was back in his hands within the hour.</p>
+      </div>
+
+      <!-- CTA -->
+      <div class="card" style="text-align:center;margin-top:24px;">
+        <h3 style="font-size:18px;margin-bottom:6px;">Protect your things in seconds</h3>
+        <p class="text-muted" style="font-size:14px;line-height:1.6;">Sign up free, print your QR sticker, and stick it on anything you don't want to lose.</p>
+        <button class="btn btn-primary btn-full mt-16" onclick="navigate('/signup')" style="font-size:16px;padding:14px;">Get my free Findy sticker →</button>
         <button class="btn btn-ghost btn-full mt-8" onclick="navigate('/')">← Back to homepage</button>
       </div>
     </div>`;
