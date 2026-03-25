@@ -1799,18 +1799,18 @@ async function renderFound(params) {
             <label>Your message to ${firstName} ✍️</label>
             <textarea id="found-message" placeholder="Where did you find it? Is it safe? Any other details?"></textarea>
           </div>
-          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#059669;line-height:1.5;">
-            🛡️ You can provide an email address or phone number so <strong>${firstName}</strong> can also contact you directly. Or leave them blank and <strong>${firstName}</strong> will simply receive your message as an alert and can reply to you anonymously through Findy.
-          </div>
-          <div class="form-group">
-            <label>Your email <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
-            <input type="text" inputmode="email" id="found-email" placeholder="you@example.com" autocomplete="off" spellcheck="false">
-            <div class="input-hint">So ${firstName} can reply to you directly</div>
-          </div>
-          <div class="form-group">
-            <label>Your phone number <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
-            ${phoneInputHTML('found-phone', '')}
-            <div class="input-hint" style="margin-top:6px;">So ${firstName} can call or WhatsApp you</div>
+          <div style="background:#eff6ff;border:2px solid #93c5fd;border-radius:12px;padding:16px;margin-bottom:16px;">
+            <div style="font-size:15px;font-weight:700;color:#1e40af;margin-bottom:6px;">📬 Leave your contact details so ${firstName} can thank you!</div>
+            <div style="font-size:13px;color:#1e3a8a;line-height:1.5;margin-bottom:12px;">Without contact details, ${firstName} won't be able to reach you to arrange getting their item back.</div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label style="font-weight:600;">Your email</label>
+              <input type="text" inputmode="email" id="found-email" placeholder="you@example.com" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="form-group" style="margin-bottom:4px;">
+              <label style="font-weight:600;">Your phone number</label>
+              ${phoneInputHTML('found-phone', '')}
+            </div>
+            <div style="font-size:11px;color:#6b7280;margin-top:8px;">🛡️ Your details are only shared with ${firstName} and never made public.</div>
           </div>
           <div class="form-group">
             <label>Photo of the item <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
@@ -1983,6 +1983,20 @@ window.submitReport = async function() {
   else if (textInput) itemName = textInput.value.trim();
 
   if (!message) { errEl.innerHTML = '<div class="alert alert-error">Please write a message for the owner.</div>'; return; }
+
+  // Nudge: if no contact details, confirm they want to be anonymous
+  if (!phone && !email && !window._confirmedAnonymous) {
+    errEl.innerHTML = `<div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:10px;padding:16px;margin-bottom:16px;">
+      <div style="font-size:15px;font-weight:700;color:#991b1b;margin-bottom:6px;">⚠️ No contact details entered</div>
+      <div style="font-size:13px;color:#7f1d1d;line-height:1.5;margin-bottom:12px;">Without your email or phone, the owner <strong>won't be able to contact you</strong> to arrange getting their item back. Are you sure?</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" onclick="window._confirmedAnonymous=true;submitReport();" style="flex:1;">Send anyway</button>
+        <button class="btn btn-outline" onclick="document.getElementById('found-error').innerHTML='';document.getElementById('found-email').focus();" style="flex:1;">Add my details</button>
+      </div>
+    </div>`;
+    return;
+  }
+  window._confirmedAnonymous = false;
 
   // Resolve owner's database UUID
   let ownerId = profile._uid || profile.uid || null;
