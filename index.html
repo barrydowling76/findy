@@ -628,7 +628,7 @@ function renderHome(user) {
     {q:'Is Findy really free?', a:'Yes, completely free. One personal QR code, unlimited sticker prints, unlimited reports. No subscription, no premium plan, no hidden fees. Ever.'},
     {q:'How do I get notified when something is found?', a:'Set up email alerts (free, via EmailJS) and phone push notifications (free, via the ntfy app). Both take about 2 minutes in your Settings page.'},
     {q:'Can I use one QR code on multiple items?', a:'That\'s the whole idea. One QR, infinite stickers. The finder simply tells you what they found when they submit their message, so you always know which item was recovered.'},
-    {q:'Is the finder\'s identity kept private?', a:'Yes. Finders are anonymous by default. They only share their phone number if they choose to — nothing is collected without their knowledge.'},
+    {q:'Is the finder\'s identity kept private?', a:'Finders are asked for an email or phone number so you can arrange getting your item back. Their details are only shared with you and never made public.'},
     {q:'What if I lose my phone or change device?', a:'Your account and QR code are tied to your email, not your device. Sign in from any browser and your dashboard, reports and QR code are all there.'},
   ];
 
@@ -664,7 +664,7 @@ function renderHome(user) {
 
     <!-- TRUST BAR -->
     <div class="trust-bar">
-      <span>🔒 Anonymous for finders</span>
+      <span>🔒 Private &amp; secure</span>
       <span>📱 No app needed</span>
       <span>⚡ Instant email &amp; push alerts</span>
       <span>🌍 Works worldwide</span>
@@ -741,7 +741,7 @@ function renderHome(user) {
       <h2>Built for how losing things really happens</h2>
       <p class="sec-sub">Simple for the owner. Even simpler for the finder.</p>
       <div class="features-grid">
-        <div class="feature-card"><div class="feature-icon">🔒</div><h3>Completely anonymous</h3><p>Finders never see your personal details. They leave a message — you decide if you want to share more.</p></div>
+        <div class="feature-card"><div class="feature-icon">🔒</div><h3>Private &amp; secure</h3><p>Finders leave their contact details so you can get your item back. Your personal info stays hidden — they only see your first name.</p></div>
         <div class="feature-card"><div class="feature-icon">📱</div><h3>No app for finders</h3><p>Any phone camera can scan and contact you. Works with the built-in iOS and Android camera app instantly.</p></div>
         <div class="feature-card"><div class="feature-icon">⚡</div><h3>Instant email + push</h3><p>Get an email and a phone push notification the moment someone finds your item. No delays, no checking.</p></div>
         <div class="feature-card"><div class="feature-icon">🖨️</div><h3>14 sticker sizes</h3><p>From 30 tiny cable labels per sheet to a single full-page luggage tag. Print exactly what you need.</p></div>
@@ -898,7 +898,7 @@ async function renderDemo() {
           <div style="font-size:11px;color:#374151;margin-bottom:6px;font-weight:600;">Your message to John ✍️</div>
           <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;font-size:11px;color:#374151;margin-bottom:10px;line-height:1.5;">Hi John, I found your phone on a bench in St Stephen's Green. It's safe with me!</div>
           <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 10px;font-size:10px;color:#059669;line-height:1.4;margin-bottom:10px;">
-            🛡️ Contact details are optional. Leave them blank to stay anonymous.
+            🛡️ Your details are only shared with the owner.
           </div>
           <div style="font-size:11px;color:#374151;margin-bottom:4px;font-weight:600;">Your email <span style="color:#9ca3af;font-weight:400;">(optional)</span></div>
           <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;font-size:12px;color:#6b7280;margin-bottom:10px;">finder@email.com</div>
@@ -1799,19 +1799,16 @@ async function renderFound(params) {
             <label>Your message to ${firstName} ✍️</label>
             <textarea id="found-message" placeholder="Where did you find it? Is it safe? Any other details?"></textarea>
           </div>
-          <div style="background:#eff6ff;border:2px solid #93c5fd;border-radius:12px;padding:16px;margin-bottom:16px;">
-            <div style="font-size:15px;font-weight:700;color:#1e40af;margin-bottom:6px;">📬 Leave your contact details so ${firstName} can thank you!</div>
-            <div style="font-size:13px;color:#1e3a8a;line-height:1.5;margin-bottom:12px;">Without contact details, ${firstName} won't be able to reach you to arrange getting their item back.</div>
-            <div class="form-group" style="margin-bottom:12px;">
-              <label style="font-weight:600;">Your email</label>
-              <input type="text" inputmode="email" id="found-email" placeholder="you@example.com" autocomplete="off" spellcheck="false">
-            </div>
-            <div class="form-group" style="margin-bottom:4px;">
-              <label style="font-weight:600;">Your phone number</label>
-              ${phoneInputHTML('found-phone', '')}
-            </div>
-            <div style="font-size:11px;color:#6b7280;margin-top:8px;">🛡️ Your details are only shared with ${firstName} and never made public.</div>
+          <div class="form-group">
+            <label>Your email or phone number <span style="color:#dc2626;">*</span></label>
+            <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">So ${firstName} can get in touch to collect their item. Please provide at least one.</div>
+            <input type="text" inputmode="email" id="found-email" placeholder="you@example.com" autocomplete="off" spellcheck="false">
           </div>
+          <div class="form-group">
+            <label>Phone number</label>
+            ${phoneInputHTML('found-phone', '')}
+          </div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:16px;">🛡️ Your details are only shared with ${firstName} and never made public.</div>
           <div class="form-group">
             <label>Photo of the item <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
             <div class="photo-upload" onclick="document.getElementById('photo-input').click()">
@@ -1826,7 +1823,7 @@ async function renderFound(params) {
             📩 Send message to ${firstName}
           </button>
           <p class="text-center mt-16" style="font-size:12px;color:var(--text-muted);">
-            Your message is anonymous unless you provide your contact details. Powered by <strong>Findy</strong>.
+            Powered by <strong>Findy</strong>.
           </p>
         </div>
       </div>
@@ -1983,20 +1980,7 @@ window.submitReport = async function() {
   else if (textInput) itemName = textInput.value.trim();
 
   if (!message) { errEl.innerHTML = '<div class="alert alert-error">Please write a message for the owner.</div>'; return; }
-
-  // Nudge: if no contact details, confirm they want to be anonymous
-  if (!phone && !email && !window._confirmedAnonymous) {
-    errEl.innerHTML = `<div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:10px;padding:16px;margin-bottom:16px;">
-      <div style="font-size:15px;font-weight:700;color:#991b1b;margin-bottom:6px;">⚠️ No contact details entered</div>
-      <div style="font-size:13px;color:#7f1d1d;line-height:1.5;margin-bottom:12px;">Without your email or phone, the owner <strong>won't be able to contact you</strong> to arrange getting their item back. Are you sure?</div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-primary" onclick="window._confirmedAnonymous=true;submitReport();" style="flex:1;">Send anyway</button>
-        <button class="btn btn-outline" onclick="document.getElementById('found-error').innerHTML='';document.getElementById('found-email').focus();" style="flex:1;">Add my details</button>
-      </div>
-    </div>`;
-    return;
-  }
-  window._confirmedAnonymous = false;
+  if (!phone && !email) { errEl.innerHTML = '<div class="alert alert-error">Please enter your email or phone number so the owner can contact you.</div>'; document.getElementById('found-email').focus(); return; }
 
   // Resolve owner's database UUID
   let ownerId = profile._uid || profile.uid || null;
